@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import React, { useState } from 'react';
 import {
@@ -15,6 +16,7 @@ import {
 } from 'lucide-react';
 
 const DEMO_PROFILES = [
+  { email: 'system.admin@cpats.example', label: 'System Administrator (local demo)' },
   { email: 'requester@dmc.edu.ph', label: 'Requester (CCS)' },
   { email: 'finance@dmc.edu.ph', label: 'Finance Evaluator' },
   { email: 'vp-admin@dmc.edu.ph', label: 'VP Administration' },
@@ -240,7 +242,7 @@ export default function InstitutionalLoginPage() {
               </div>
 
               <div className="space-y-2">
-                <div className="flex items-center justify-between gap-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <label htmlFor="institutional-password" className="block text-sm font-semibold text-[#263a32]">
                     Password
                   </label>
@@ -251,6 +253,7 @@ export default function InstitutionalLoginPage() {
                   >
                     Get sign-in help
                   </button>
+                  <Link href="/reset-password" className="text-xs font-semibold text-[#087443] underline decoration-[#9bc9ae] underline-offset-4 hover:text-[#063d2d]">Forgot password?</Link>
                 </div>
                 <div className="relative">
                   <input
@@ -295,7 +298,7 @@ export default function InstitutionalLoginPage() {
           </div>
         </div>
 
-        <footer className="mx-auto w-full max-w-[27rem] border-t border-[#cbd8d1] pt-4 xl:max-w-none">
+        {process.env.NODE_ENV !== 'production' && <footer className="mx-auto w-full max-w-[27rem] border-t border-[#cbd8d1] pt-4 xl:max-w-none">
           <button
             type="button"
             onClick={() => setShowDevProfiles((visible) => !visible)}
@@ -325,7 +328,7 @@ export default function InstitutionalLoginPage() {
               ))}
             </div>
           )}
-        </footer>
+        </footer>}
       </section>
 
       {showSupportModal && (
@@ -334,7 +337,7 @@ export default function InstitutionalLoginPage() {
             <HelpCircle className="mb-4 size-6 shrink-0 text-[#087443]" aria-hidden="true" />
             <h3 className="text-xl font-semibold tracking-[-0.03em] text-[#17221e]">Institutional IT support</h3>
             <p className="mt-3 text-sm leading-6 text-[#507064]">
-              Password resets are handled by the DMC Management Information Systems office.
+              You can request a reset link from the sign-in page. If you cannot access your verified school mailbox, contact your institution&apos;s designated IT office for identity-checked recovery.
             </p>
             <dl className="mt-5 divide-y divide-[#cbd8d1] border-y border-[#cbd8d1] text-sm text-[#263a32]">
               <div className="flex justify-between gap-4 py-3"><dt className="text-[#70877d]">Office</dt><dd className="font-semibold text-right">MIS &amp; Systems Center</dd></div>

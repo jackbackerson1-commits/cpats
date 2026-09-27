@@ -24,6 +24,8 @@ export default async function DashboardDispatcherPage() {
       redirect('/dashboard/receiving/new');
     case Role.Global_Auditor:
       redirect('/dashboard/audit');
+    case Role.System_Administrator:
+      redirect('/dashboard/system/accounts');
     default:
       redirect('/login');
   }
