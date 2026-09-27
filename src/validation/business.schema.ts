@@ -6,7 +6,7 @@ export const BusinessEvaluationSchema = z.object({
   action: z.enum(['APPROVE', 'DECLINE', 'RETURN_FOR_CORRECTION'], {
     message: "Action must be strictly bounded to APPROVE, DECLINE, or RETURN_FOR_CORRECTION."
   }),
-  remarks: z.string().min(5, "Audit compliance requires remarks to be at least 5 characters long to preserve trail transparency.")
+  remarks: z.string().trim().min(5, "Audit compliance requires remarks to be at least 5 characters long to preserve trail transparency.")
 });
 
 export type BusinessEvaluationInput = z.infer<typeof BusinessEvaluationSchema>;

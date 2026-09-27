@@ -14,7 +14,7 @@ export const ROUTE_ROLE_MAP: Record<string, Role[]> = {
   '/dashboard/po/release-check': [Role.Business_Office],
   '/dashboard/receiving/new': [Role.Receiving_Custodian],
   '/dashboard/audit': [Role.Global_Auditor],
-  '/dashboard/notifications': [Role.Business_Office, Role.Admin_Office, Role.Purchasing_Office, Role.Receiving_Custodian, Role.Global_Auditor],
+  '/dashboard/notifications': Object.values(Role),
 };
 
 export function isRoleAllowed(userRole: Role, allowedRoles: Role | Role[]): boolean {
