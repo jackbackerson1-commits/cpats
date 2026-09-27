@@ -1,18 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedUser } from '@/shared/session';
+import { Role } from '@prisma/client';
+import { authorizeRequest } from '@/shared/rbac';
 
 export async function GET(request: NextRequest) {
-  const activeUser = await getAuthenticatedUser(request);
-
-  if (!activeUser) {
-    return NextResponse.json(
-      { success: false, error: "UNAUTHORIZED: No active session detected." },
-      { status: 401 }
-    );
-  }
+  const auth = await authorizeRequest(request, Object.values(Role));
+  if (!auth.success) return auth.response;
 
   return NextResponse.json(
-    { success: true, data: activeUser },
+    { success: true, data: auth.user },
     { status: 200 }
   );
 }

@@ -30,7 +30,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const targetedDepartmentId = departmentId || activeUser.departmentId;
+    if (role === Role.Requesting_Office &&
+        activeUser.role === Role.Requesting_Office &&
+        departmentId && departmentId !== activeUser.departmentId) {
+      return NextResponse.json(
+        { success: false, error: 'FORBIDDEN: Requesting Office records are limited to your own department.' },
+        { status: 403 }
+      );
+    }
+
+    const targetedDepartmentId = activeUser.role === Role.Global_Auditor
+      ? departmentId || activeUser.departmentId
+      : activeUser.departmentId;
 
     switch (role) {
       case Role.Requesting_Office:

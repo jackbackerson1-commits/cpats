@@ -17,7 +17,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { email, password } = validation.data;
+    const { password } = validation.data;
+    const email = validation.data.email.trim().toLowerCase();
 
     const user = await prisma.user.findUnique({
       where: { email },
@@ -27,6 +28,13 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return NextResponse.json(
         { success: false, error: "AUTHENTICATION_FAILED: Invalid email or password." },
+        { status: 401 }
+      );
+    }
+
+    if (user.accountStatus !== 'Active') {
+      return NextResponse.json(
+        { success: false, error: 'AUTHENTICATION_FAILED: Invalid email or password.' },
         { status: 401 }
       );
     }
@@ -46,6 +54,7 @@ export async function POST(request: NextRequest) {
       departmentId: user.departmentId,
       departmentCode: user.department.code,
       departmentName: user.department.name,
+      sessionVersion: user.sessionVersion,
     };
 
     // Await async signToken call
