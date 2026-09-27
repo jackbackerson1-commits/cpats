@@ -350,6 +350,8 @@ export function ReviewWorkspace({
   emptyMessage,
   selectedId,
   onSelect,
+  selectionLabel = 'In review',
+  selectedTaskLabel = 'Reviewing selected transaction',
   children,
 }: {
   queueTitle: string;
@@ -358,6 +360,8 @@ export function ReviewWorkspace({
   emptyMessage: string;
   selectedId: string;
   onSelect: (id: string) => void;
+  selectionLabel?: string;
+  selectedTaskLabel?: string;
   children: React.ReactNode;
 }) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -504,7 +508,7 @@ export function ReviewWorkspace({
                         </span>
                         {isSelected && (
                           <span className="shrink-0 text-[9px] font-semibold uppercase tracking-[0.1em] text-emerald-700">
-                            In review
+                            {selectionLabel}
                           </span>
                         )}
                       </div>
@@ -526,7 +530,7 @@ export function ReviewWorkspace({
                   Record workspace
                 </p>
                 <p className="mt-0.5 text-[12px] font-medium text-slate-700">
-                  {selectedId ? 'Reviewing selected transaction' : 'Awaiting record selection'}
+                  {selectedId ? selectedTaskLabel : 'Awaiting record selection'}
                 </p>
               </div>
 

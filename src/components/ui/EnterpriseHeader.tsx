@@ -80,6 +80,21 @@ export default function EnterpriseHeader({ activeRole: propRole, departmentCode:
     step.allowedRoles.includes(displayRole)
   );
 
+  const handleWorkflowNavigation = (
+    event: React.MouseEvent<HTMLAnchorElement>,
+    step: NavigationStep
+  ) => {
+    if (
+      step.href === '/dashboard/pr/new' &&
+      pathname === '/dashboard/pr/new' &&
+      (new URLSearchParams(window.location.search).has('returnId') ||
+        new URLSearchParams(window.location.search).has('declineId'))
+    ) {
+      event.preventDefault();
+      window.location.assign(step.href);
+    }
+  };
+
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-slate-200 shadow-2xs">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -115,7 +130,7 @@ export default function EnterpriseHeader({ activeRole: propRole, departmentCode:
               </div>
             </div>
 
-            {displayRole !== Role.Requesting_Office && <NotificationBell />}
+            <NotificationBell />
 
             <button
               onClick={handleLogout}
@@ -136,6 +151,7 @@ export default function EnterpriseHeader({ activeRole: propRole, departmentCode:
                 <Link
                   key={step.href}
                   href={step.href}
+                  onClick={(event) => handleWorkflowNavigation(event, step)}
                   className={`flex min-h-9 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition-colors sm:flex-none sm:px-3 sm:text-xs ${
                     isActive
                       ? 'bg-emerald-50 text-emerald-800 border-emerald-200 font-bold shadow-2xs'

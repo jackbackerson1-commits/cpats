@@ -7,16 +7,20 @@ import { useEffect, useId, useRef } from 'react';
 
 export interface NotificationItem {
   id: string;
+  prId: string;
+  sourceAuditLogId: string;
   title: string;
   message: string;
   actionPath: string;
   readAt: string | null;
+  archivedAt?: string | null;
   trashedAt?: string | null;
   purgeAfter?: string | null;
   createdAt: string;
 }
 
 const ACTION_LABELS: Record<string, string> = {
+  '/dashboard/pr/track': 'Track this request',
   '/dashboard/pr/evaluate-business': 'Open budget review',
   '/dashboard/pr/approve-admin': 'Open approval workspace',
   '/dashboard/po/new': 'Open PO preparation',
@@ -30,7 +34,24 @@ export function notificationRequestReference(message: string): string | null {
 }
 
 export function notificationActionLabel(actionPath: string): string {
-  return ACTION_LABELS[actionPath] ?? 'Open this workspace';
+  return ACTION_LABELS[actionPath.split('?')[0]] ?? 'Open this workspace';
+}
+
+export function notificationActionPath(item: NotificationItem): string {
+  if (!item.prId) return item.actionPath;
+  const path = item.actionPath.split('?')[0];
+  const params = new URLSearchParams({ prId: item.prId });
+  if ((path === '/dashboard/pr/track' || path === '/dashboard/audit') && item.sourceAuditLogId) params.set('auditLogId', item.sourceAuditLogId);
+  return `${path}?${params}`;
+}
+
+export function notificationWorkspacePath(item: NotificationItem): string {
+  const path = item.actionPath.split('?')[0];
+  return path === '/dashboard/pr/track' ? '/dashboard/pr/new' : path;
+}
+
+export function notificationWorkspaceLabel(item: NotificationItem): string {
+  return item.actionPath.startsWith('/dashboard/pr/track') ? 'Open requester workspace' : 'Open workspace';
 }
 
 export function NotificationDetailBody({
@@ -98,7 +119,8 @@ export default function NotificationDetailDialog({
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
   const onCloseRef = useRef(onClose);
-  const actionLabel = notificationActionLabel(item.actionPath);
+  const actionPath = notificationActionPath(item);
+  const actionLabel = notificationActionLabel(actionPath);
 
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -184,7 +206,7 @@ export default function NotificationDetailDialog({
           <NotificationDetailBody item={item} readError={readError} />
         </div>
 
-        <footer className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
+        <footer className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:flex-wrap sm:justify-end sm:px-6">
           <button
             type="button"
             onClick={onClose}
@@ -192,9 +214,9 @@ export default function NotificationDetailDialog({
           >
             Close
           </button>
-          {pathname !== item.actionPath && (
+          {(pathname !== actionPath.split('?')[0] || item.prId) && (
             <a
-              href={item.actionPath}
+              href={actionPath}
               className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg bg-emerald-700 px-4 text-sm font-semibold text-white transition-colors hover:bg-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
             >
               {actionLabel}
