@@ -2,7 +2,7 @@
 
 ## Current project direction
 
-The CPATS procurement pipeline is **functional and is the source of truth**. Current and future work in this project is limited to improving the user experience and visual quality of the existing system.
+The CPATS procurement pipeline is **functional and is the source of truth**. Current and future work may improve the user experience and add supporting features around that pipeline; it must not change who can advance a request or how it advances.
 
 For additive features requested by Ma'am Grace or other project proponents, also read [`FEATURE_IMPLEMENTATION.md`](./FEATURE_IMPLEMENTATION.md). It defines the safe feature-development boundary around the fixed pipeline.
 
@@ -12,12 +12,24 @@ For additive features requested by Ma'am Grace or other project proponents, also
 - Purchasing Office order tracking from PO preparation through receiving
 - Responsive behavior checked at phone, tablet, and desktop widths
 - Seeded institutional role accounts with independently hashed passwords
-- In-app workflow notifications for Business, Admin, Purchasing, Receiving, and Audit roles
+- In-app workflow notifications for Requesting, Business, Admin, Purchasing, Receiving, and Audit roles
+- Notification actions that open the referenced request or event, with contextual controls in the bell preview and full Notifications page
+- Read-only Admin and Business Office decision history, including records that have moved beyond each office's active review queue
+- Inbox row actions for archive, trash, and read/unread; bulk actions appear only for selected notifications, with archived items accessible in an Archive tab
 - Recoverable notification trash with 1-week, 2-week, or 2-month retention and explicit permanent deletion
 - Optional verified external email delivery, backed by a durable email outbox
 - Returned requisition correction and resubmission with saved inputs, evaluator feedback, ownership checks, and preserved audit history
 - Returned-request correction mode can be discarded from the form or the New Request navigation tab to restore a clean request template
 - Declined requests can seed a new requisition with their saved inputs and decision note; refreshing a populated request form restores the blank New Request page
+
+## Notification behavior and next UI pass
+
+- The bell preview and the full Notifications page have different action sets. The bell preview should not offer a shortcut back to the workspace the user is already viewing.
+- A notification link should open its specific request and, when supported, the specific audit event. An office's past decision remains in read-only history after the request leaves its active queue; the decision and current status are displayed separately.
+- Inbox notifications support pointer hover, keyboard focus, and touch access to row actions. The row action icon represents what clicking it will do: a closed envelope means **Mark as unread** and an open envelope means **Mark as read**. The unread indicator shows the current state. Selection reveals the applicable bulk actions and clearing selection hides them.
+- Archive keeps a notification available for reference; Trash has a separate recoverable retention schedule. Notification actions must not change the purchase request or audit record.
+- The matching row-action and bulk-selection UX in **Trash** is a later requested pass. Do not describe it as implemented until completed and verified.
+- The archive migration (`20260926120000_notification_archive`) was applied to the local database. Other installations must apply repository migrations before using the archive feature.
 
 ## Notification email deployment
 
@@ -62,7 +74,7 @@ Prioritize improvements such as:
 
 When polishing a page:
 
-1. Keep API endpoints, request payloads, schemas, Prisma models, role checks, status values, and transition logic unchanged.
+1. Keep procurement API contracts, role checks, status values, and transition logic unchanged. Supporting notification or read-only history endpoints, validation, and Prisma fields may be added under the isolated, additive rules in `FEATURE_IMPLEMENTATION.md`.
 2. Treat server responses as authoritative. UI feedback may explain a rejected action, but must not bypass or recreate server-side workflow decisions.
 3. Prefer local, isolated presentation-state changes (for example, modal visibility, preview state, and visual components).
 4. Preserve existing functional behavior unless a user explicitly asks to change it.

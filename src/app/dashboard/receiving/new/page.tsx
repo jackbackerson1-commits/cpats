@@ -116,6 +116,7 @@ export default function ReceivingCustodianPage() {
   const [systemError, setSystemError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<ZodFormErrors | null>(null);
   const [transactionSuccess, setTransactionSuccess] = useState<string | null>(null);
+  const notificationTargetHandled = useRef(false);
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -144,6 +145,15 @@ export default function ReceivingCustodianPage() {
       const resData = await response.json();
       if (response.ok) {
         setReceivingQueue(resData.data || []);
+        if (!notificationTargetHandled.current) {
+          notificationTargetHandled.current = true;
+          const targetId = new URLSearchParams(window.location.search).get('prId');
+          if (targetId) {
+            const target = (resData.data as PendingPOQueueNode[]).find((item) => item.purchaseRequestId === targetId);
+            if (target) setPurchaseOrderId(target.id);
+            else setSystemError('This request is no longer awaiting receiving. Its workflow status may have changed.');
+          }
+        }
       }
     } catch (err) {
       console.error('Intake queue sync error:', err);

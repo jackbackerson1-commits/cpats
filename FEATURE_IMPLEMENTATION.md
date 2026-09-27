@@ -39,6 +39,16 @@ Ma'am Grace's feedback may be implemented when it adds capability **around** the
 
 An additive database field, table, API endpoint, or persisted preference is not automatically prohibited. Before adding one, confirm that it stores supporting information only and cannot change the procurement route, authority, or transition rules. Keep it isolated from pipeline logic.
 
+## Notification and history rules learned from current work
+
+- Treat a workflow notification as a view of an already recorded event. Derive its decision and recipient from the server's committed audit record; never let opening, reading, archiving, or deleting an alert change the request's status or audit history.
+- Cover every affected role, including the Requesting Office, when adding a shared notification behavior. Check the same event from the sender's and recipient's perspectives so an approval, decline, return, or later handoff is described accurately.
+- Keep a notification's read state, archive state, and trash state separate from the procurement state. Archive is a recoverable filing action; Trash follows its own retention and deletion rules. Scope every notification query and mutation to the signed-in recipient on the server.
+- A notification action that names a request should open that exact request. When an event-specific view exists, preserve its event identifier too. If the request has left the active queue, resolve the link to an authorized read-only history view or explain the stale state; never make an old record actionable again.
+- Derive decision history from the office's audit decisions, not from the current queue or the request's current status. Show the office's recorded decision separately from the request's current workflow status. A historical record must not render decision controls or submit through an action endpoint.
+- Keep controls contextual. The compact bell preview should show only actions useful there; the full Notifications page may include a workspace shortcut. Hide bulk actions when no rows are selected. Reveal row actions on pointer hover and keyboard focus, and keep them visible on touch devices. Use clear labels and the appropriate open or closed envelope icon for the available read-state action.
+- For asynchronous notification actions, keep the list, unread count, selection, and open detail consistent after success. Show an error when a server action fails. Preserve authorization and server validation for single and bulk operations.
+
 ## Responsive design is a default requirement
 
 Every feature with a user interface must be designed for the full supported range of screen sizes from the beginning. Responsive behavior is part of feature completion, not optional polish and not a separate follow-up task.
@@ -83,12 +93,15 @@ If it appears to require changing any of them, stop and ask the user for explici
 
 Write a short checklist describing what the user will be able to see or do after implementation. For every interface feature, compact-phone, tablet, and desktop behavior is mandatory acceptance criteria. Also include accessibility, failure feedback, and preservation of existing workflow behavior where relevant.
 
+For a shared notification or history change, include a role-by-role and state-by-state check: active request, approved and advanced request, returned request, declined request, empty history, stale link, and failed load where applicable. Distinguish Inbox, Archive, and Trash behavior rather than assuming one view's actions apply to the others.
+
 ### 4. Implement the smallest safe change
 
 - Prefer local components and presentation state for interface features.
 - Reuse established CPATS patterns, colors, spacing, and accessible SVG icons.
 - Keep new logic separate from transition and authorization code.
 - Preserve current API payloads and server decisions whenever possible.
+- If support data needs a migration, keep it additive, provide a way to retrieve or reverse the new state, and verify the migration in the target environment. Do not repurpose a procurement status or audit field to store UI state.
 - Avoid unrelated cleanup or refactoring during a feature pass.
 - Never alter demo or production records merely to make a feature appear successful.
 
