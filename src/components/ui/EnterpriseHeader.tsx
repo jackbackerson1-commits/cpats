@@ -25,6 +25,7 @@ const ROLE_LABELS: Record<string, string> = {
   Purchasing_Office: 'Purchasing Office',
   Receiving_Custodian: 'Receiving Custodian',
   Global_Auditor: 'Global Auditor',
+  System_Administrator: 'System Administrator',
 };
 
 export default function EnterpriseHeader({ activeRole: propRole, departmentCode: propCode }: EnterpriseHeaderProps) {
@@ -56,9 +57,9 @@ export default function EnterpriseHeader({ activeRole: propRole, departmentCode:
     }
   };
 
-  const displayRole = sessionUser?.role || propRole || Role.Requesting_Office;
-  const displayCode = sessionUser?.departmentCode || propCode || 'CCS';
-  const roleLabel = ROLE_LABELS[displayRole] ?? String(displayRole).replace(/_/g, ' ');
+  const displayRole = sessionUser?.role || propRole;
+  const displayCode = sessionUser?.departmentCode || propCode || '—';
+  const roleLabel = displayRole ? ROLE_LABELS[displayRole] ?? String(displayRole).replace(/_/g, ' ') : 'Loading account';
   const initial = roleLabel.charAt(0);
 
   // Define workflow routes and permitted roles
@@ -73,11 +74,12 @@ export default function EnterpriseHeader({ activeRole: propRole, departmentCode:
     { name: 'Check Release', number: '04B', href: '/dashboard/po/release-check', allowedRoles: [Role.Business_Office] },
     { name: 'Cargo Intake', number: '05', href: '/dashboard/receiving/new', allowedRoles: [Role.Receiving_Custodian] },
     { name: 'Audit Console', number: '06', href: '/dashboard/audit', allowedRoles: [Role.Global_Auditor] },
+    { name: 'Staff Accounts', number: 'IT', href: '/dashboard/system/accounts', allowedRoles: [Role.System_Administrator] },
   ];
 
   // Filter navigation steps authorized for the active user's role
   const authorizedSteps = navigationSteps.filter((step) =>
-    step.allowedRoles.includes(displayRole)
+    displayRole && step.allowedRoles.includes(displayRole)
   );
 
   const handleWorkflowNavigation = (
