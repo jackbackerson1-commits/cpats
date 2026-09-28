@@ -2,7 +2,7 @@
 
 ## Current project direction
 
-The CPATS procurement pipeline is **functional and is the source of truth**. Current and future work may improve the user experience and add supporting features around that pipeline; it must not change who can advance a request or how it advances.
+The CPATS procurement pipeline is **functional and is the source of truth**. Current and future work may improve the user experience and add supporting features around that pipeline. A specific pipeline rule may change only when the current request explicitly authorizes that change; every other rule remains protected.
 
 For additive features requested by Ma'am Grace or other project proponents, also read [`FEATURE_IMPLEMENTATION.md`](./FEATURE_IMPLEMENTATION.md). It defines the safe feature-development boundary around the fixed pipeline.
 
@@ -94,4 +94,4 @@ For cosmetic icon updates, use local or imported SVG functional components rathe
 
 ## Instructions for future agents
 
-Before editing, read this file and [`FEATURE_IMPLEMENTATION.md`](./FEATURE_IMPLEMENTATION.md). If a requested change could affect the procurement pipeline, stop and ask the user for explicit approval before changing business logic.
+Before editing, read this file and [`FEATURE_IMPLEMENTATION.md`](./FEATURE_IMPLEMENTATION.md). If the current request explicitly authorizes a specific procurement-pipeline change, keep the implementation within that change's necessary scope and preserve every other pipeline. If it does not, obtain direction before changing business logic.

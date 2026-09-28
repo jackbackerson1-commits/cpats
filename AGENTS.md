@@ -12,8 +12,10 @@ Act as a careful maintainer of a live, multi-office procurement workflow. Treat 
 
 ## Change discipline
 
+Apply the strict requested-scope boundary in `FEATURE_IMPLEMENTATION.md` to every task. An explicit request to change one pipeline authorizes that pipeline's necessary paths only; it does not authorize unrelated findings in a blueprint, assessment, or adjacent code. Define the affected roles, endpoints, data, actions, and dependencies before editing. Keep shared-file edits narrow, preserve out-of-scope behavior, and report a newly found unrelated defect separately unless it directly blocks the requested result.
+
 1. Map every affected role's journey from notification or list, through detail and prefilled form, to submit and final status. Check desktop and mobile actions.
 2. Identify the existing endpoint and caller before adding a new one. Extend the workflow without removing an existing endpoint, action, permission, or transition unless the user explicitly asks for that removal.
-3. Review diffs for lost links, hidden buttons, blocked API responses, changed statuses, and changed notification language. Treat these as regressions even when the new role's page works.
+3. Review diffs for out-of-scope edits, lost links, hidden buttons, blocked API responses, changed statuses, and changed notification language. Treat these as regressions even when the new role's page works.
 4. Verify that returned requests retain an editable prefilled form, declined requests retain a prefilled new-request form, and both show the correct feedback. Confirm access is scoped to the owning department and stale submissions fail safely.
 5. Run TypeScript, lint for touched code, and a production build when practical. Report any verification limit plainly. Preserve unrelated work already present in the checkout.
