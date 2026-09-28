@@ -13,6 +13,7 @@ const DEPARTMENTS = [
   { id: 'purchasing-dept-uuid-wxy', name: 'Purchasing and Procurement Office', code: 'PPO' },
   { id: 'asset-management-dept-uuid-000', name: 'Property and Asset Management Unit', code: 'PAMU' },
   { id: 'audit-compliance-dept-uuid', name: 'Internal Audit Office', code: 'IAO' },
+  { id: 'cpats-system-administration', name: 'CPATS System Administration', code: 'SYS' },
 ] as const;
 
 const ROLE_ACCOUNTS = [
@@ -39,34 +40,52 @@ async function main() {
   for (const department of DEPARTMENTS) {
     const storedDepartment = await prisma.department.upsert({
       where: { code: department.code },
-      update: { name: department.name },
+      update: {},
       create: department,
       select: { id: true, code: true },
     });
     departmentIds.set(storedDepartment.code, storedDepartment.id);
   }
 
-  console.log('Synchronizing secured role accounts...');
+  console.log('Creating missing demonstration role accounts without rotating existing passwords...');
 
   for (const account of ROLE_ACCOUNTS) {
     const departmentId = departmentIds.get(account.departmentCode);
     if (!departmentId) throw new Error(`Department ${account.departmentCode} could not be resolved.`);
 
-    const passwordHash = hashPassword(requireSeedPassword(account.passwordVariable));
-    await prisma.user.upsert({
-      where: { email: account.email },
-      update: { passwordHash, role: account.role, departmentId },
-      create: {
-        id: account.id,
-        email: account.email,
-        passwordHash,
-        role: account.role,
-        departmentId,
-      },
-    });
+    const existing = await prisma.user.findUnique({ where: { email: account.email }, select: { id: true } });
+    if (existing) continue;
+    await prisma.user.create({ data: {
+      id: account.id,
+      email: account.email,
+      passwordHash: hashPassword(requireSeedPassword(account.passwordVariable)),
+      role: account.role,
+      departmentId,
+    } });
   }
 
-  console.log('Role accounts synchronized. Existing procurement and audit records were preserved.');
+  const adminEmail = process.env.CPATS_SEED_SYSTEM_ADMIN_EMAIL?.trim().toLowerCase();
+  const adminPassword = process.env.CPATS_SEED_SYSTEM_ADMIN_PASSWORD;
+  if (adminEmail || adminPassword) {
+    if (!adminEmail || !adminPassword) throw new Error('Set both CPATS_SEED_SYSTEM_ADMIN_EMAIL and CPATS_SEED_SYSTEM_ADMIN_PASSWORD.');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(adminEmail) || adminPassword.length < 16) {
+      throw new Error('System administrator bootstrap requires a valid email and a password of at least 16 characters.');
+    }
+    const existing = await prisma.user.findUnique({ where: { email: adminEmail }, select: { role: true } });
+    if (existing && existing.role !== Role.System_Administrator) {
+      throw new Error('System administrator email already belongs to another role.');
+    }
+    if (!existing) {
+      await prisma.user.create({ data: {
+        email: adminEmail,
+        passwordHash: hashPassword(adminPassword),
+        role: Role.System_Administrator,
+        departmentId: departmentIds.get('SYS')!,
+      } });
+    }
+  }
+
+  console.log('Missing accounts created. Existing credentials, procurement, and audit records were preserved.');
 }
 
 main()

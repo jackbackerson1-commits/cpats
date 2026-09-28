@@ -1,17 +1,38 @@
-// src/middleware.ts
+// src/proxy.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { verifySessionToken, SESSION_COOKIE_NAME } from '@/shared/session';
 import { ROUTE_ROLE_MAP, isRoleAllowed } from '@/shared/rbac';
+import { prisma } from '@/shared/prisma';
 
 const PUBLIC_PATHS = ['/login', '/api/auth/login', '/favicon.ico', '/_next'];
+const PUBLIC_ACCOUNT_PATHS = ['/activate', '/reset-password', '/api/auth/request-reset', '/api/auth/complete-token'];
 
-export async function middleware(request: NextRequest) {
+async function currentSessionUser(request: NextRequest) {
+  const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+  const claims = sessionCookie ? await verifySessionToken(sessionCookie) : null;
+  if (!claims) return null;
+  const stored = await prisma.user.findUnique({
+    where: { id: claims.id },
+    include: { department: { select: { code: true, name: true } } },
+  });
+  if (!stored || stored.accountStatus !== 'Active' || stored.sessionVersion !== (claims.sessionVersion ?? 0)) return null;
+  return {
+    id: stored.id,
+    email: stored.email,
+    role: stored.role,
+    departmentId: stored.departmentId,
+    departmentCode: stored.department.code,
+    departmentName: stored.department.name,
+    sessionVersion: stored.sessionVersion,
+  };
+}
+
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (PUBLIC_PATHS.some((path) => pathname.startsWith(path))) {
+  if (PUBLIC_PATHS.some((path) => pathname.startsWith(path)) || PUBLIC_ACCOUNT_PATHS.includes(pathname)) {
     if (pathname === '/login') {
-      const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-      const user = sessionCookie ? await verifySessionToken(sessionCookie) : null;
+      const user = await currentSessionUser(request);
       if (user) {
         return NextResponse.redirect(new URL('/dashboard', request.url));
       }
@@ -19,8 +40,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  const user = sessionCookie ? await verifySessionToken(sessionCookie) : null;
+  const user = await currentSessionUser(request);
 
   if (pathname.startsWith('/dashboard')) {
     if (!user) {
@@ -52,6 +72,7 @@ export async function middleware(request: NextRequest) {
     requestHeaders.set('x-user-role', user.role);
     requestHeaders.set('x-user-department-id', user.departmentId);
     requestHeaders.set('x-user-department-code', user.departmentCode);
+    requestHeaders.set('x-user-session-version', String(user.sessionVersion ?? 0));
   }
 
   return NextResponse.next({
@@ -63,4 +84,4 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: ['/dashboard/:path*', '/api/:path*', '/login'],
-};  
+};
