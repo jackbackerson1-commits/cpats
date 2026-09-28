@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Role } from '@prisma/client';
 import { getAuthenticatedUser, AuthUser } from '@/shared/session';
+import { prisma } from '@/shared/prisma';
 
 export const ROUTE_ROLE_MAP: Record<string, Role[]> = {
   '/dashboard/pr': [Role.Requesting_Office],
@@ -14,6 +15,7 @@ export const ROUTE_ROLE_MAP: Record<string, Role[]> = {
   '/dashboard/po/release-check': [Role.Business_Office],
   '/dashboard/receiving/new': [Role.Receiving_Custodian],
   '/dashboard/audit': [Role.Global_Auditor],
+  '/dashboard/system/accounts': [Role.System_Administrator],
   '/dashboard/notifications': Object.values(Role),
 };
 
@@ -41,18 +43,39 @@ export async function authorizeRequest(
     };
   }
 
-  if (!isRoleAllowed(user.role, allowedRoles)) {
+  const current = await prisma.user.findUnique({
+    where: { id: user.id },
+    include: { department: { select: { code: true, name: true } } },
+  });
+  if (!current || current.accountStatus !== 'Active' || current.sessionVersion !== (user.sessionVersion ?? 0)) {
+    return {
+      success: false,
+      response: NextResponse.json({ success: false, error: 'Your session is no longer active. Please sign in again.' }, { status: 401 }),
+    };
+  }
+
+  const activeUser: AuthUser = {
+    id: current.id,
+    email: current.email,
+    role: current.role,
+    departmentId: current.departmentId,
+    departmentCode: current.department.code,
+    departmentName: current.department.name,
+    sessionVersion: current.sessionVersion,
+  };
+
+  if (!isRoleAllowed(activeUser.role, allowedRoles)) {
     return {
       success: false,
       response: NextResponse.json(
         {
           success: false,
-          error: `FORBIDDEN: Institutional security policy restricts resource access. User role '${user.role}' is not authorized for this operation.`,
+          error: `FORBIDDEN: Institutional security policy restricts resource access. User role '${activeUser.role}' is not authorized for this operation.`,
         },
         { status: 403 }
       ),
     };
   }
 
-  return { success: true, user };
+  return { success: true, user: activeUser };
 }

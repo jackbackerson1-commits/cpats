@@ -10,6 +10,7 @@ export interface AuthUser {
   departmentId: string;
   departmentCode: string;
   departmentName: string;
+  sessionVersion?: number;
 }
 
 export const SESSION_COOKIE_NAME = 'cpats_session';
@@ -115,6 +116,7 @@ export async function getAuthenticatedUser(request?: NextRequest): Promise<AuthU
     const headerDeptId = request.headers.get('x-user-department-id');
     const headerEmail = request.headers.get('x-user-email');
     const headerDeptCode = request.headers.get('x-user-department-code');
+    const headerSessionVersion = request.headers.get('x-user-session-version');
 
     if (headerId && headerRole && headerDeptId) {
       return {
@@ -124,6 +126,7 @@ export async function getAuthenticatedUser(request?: NextRequest): Promise<AuthU
         departmentId: headerDeptId,
         departmentCode: headerDeptCode || '',
         departmentName: '',
+        sessionVersion: headerSessionVersion === null ? 0 : Number(headerSessionVersion),
       };
     }
 
