@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect, useRef, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { ChevronDown, ExternalLink, FileText } from 'lucide-react';
 import { Role, PRStatus } from '@prisma/client';
 import { AuthUser } from '@/shared/session';
 import {
@@ -20,8 +21,8 @@ import {
   CheckItem,
   ReviewWorkspace,
   ActionButton,
-  QueueTask,
-} from '@/components/ui/WorkflowUI';
+  QueueTask, AdminSection, AdminEmptySelection, AdminFinalAction, DecisionButtonGroup,
+} from '@/components/admin/AdminUI';
 
 interface ZodSubErrors {
   _errors?: string[];
@@ -102,100 +103,6 @@ function formatPeso(value: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
-}
-
-function DocumentIcon({ className = 'size-5' }: { className?: string }) {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      className={className}
-    >
-      <path d="M7 3h7l4 4v14H7V3Z" />
-      <path d="M14 3v5h5M10 13h5M10 16h5" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function BuildingIcon({ className = 'size-5' }: { className?: string }) {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      className={className}
-    >
-      <path d="M4 21V7l8-4 8 4v14M8 10h2M14 10h2M8 14h2M14 14h2M9 21v-4h6v4" />
-    </svg>
-  );
-}
-
-function ShieldCheckIcon({ className = 'size-5' }: { className?: string }) {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      className={className}
-    >
-      <path d="M12 3 19 6v5c0 4.6-2.8 8-7 10-4.2-2-7-5.4-7-10V6l7-3Z" />
-      <path d="m8.5 12 2.2 2.2 4.8-5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function ArrowRightIcon({ className = 'size-4' }: { className?: string }) {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      className={className}
-    >
-      <path d="M5 12h14M14 7l5 5-5 5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function UploadIcon({ className = 'size-4' }: { className?: string }) {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      className={className}
-    >
-      <path d="M12 16V4M8 8l4-4 4 4M5 20h14" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function EmptySelectionState() {
-  return (
-    <div className="flex min-h-[430px] flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50 px-6 text-center">
-      <div className="flex size-12 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-400 shadow-sm">
-        <DocumentIcon className="size-5" />
-      </div>
-      <h3 className="mt-4 text-sm font-semibold text-slate-800">
-        Select a requisition for executive review
-      </h3>
-      <p className="mt-1.5 max-w-sm text-[12px] leading-5 text-slate-500">
-        Choose a pending record from the queue to inspect its evidence, item schedule,
-        authorization requirements, and executive disposition controls.
-      </p>
-    </div>
-  );
 }
 
 export default function AdminOfficeApprovalPage() {
@@ -559,890 +466,151 @@ export default function AdminOfficeApprovalPage() {
 
   return (
     <PageShell>
-      <StageHeader
-        eyebrow="Step 3 of 6 · Executive Administration Approval"
-        title="Executive Requisition Review"
-        description="Inspect procurement evidence, confirm executive authorization requirements, and issue the formal administrative disposition."
-        meta={{
-          label: 'Institutional signatory',
-          value: `${activeUser.departmentCode} • Executive Node`,
-        }}
-      />
-
+      <StageHeader title="Executive requisition review"
+        description="Review procurement evidence, confirm the required authorizations, and record the Admin Office decision."
+        meta={{ label: 'Signed in as', value: activeUser.email }} />
       {systemError && <ErrorBanner>{systemError}</ErrorBanner>}
       {primarySegment === 'DECISION_HISTORY' && historyError && <ErrorBanner>{historyError}</ErrorBanner>}
       {successStatus && <SuccessBanner>{successStatus}</SuccessBanner>}
 
-      <ReviewWorkspace
-        queueTitle={
-          primarySegment === 'ACTION_REQUIRED'
-            ? 'Requests Awaiting Executive Sign-Off'
-            : 'Decision history'
-        }
-        tasks={queueTasks}
-        loading={queueLoading}
-        emptyMessage={
-          primarySegment === 'ACTION_REQUIRED'
-            ? 'Backlog Clear: No documents require structural executive evaluation.'
-            : 'No matching Admin Office decisions were found.'
-        }
+      <div className="space-y-3">
+        <div role="group" aria-label="Executive queue view" className="flex flex-wrap gap-2">
+          {([
+            ['ACTION_REQUIRED', 'Action required', actionRequiredQueue.length],
+            ['DECISION_HISTORY', 'Decision history', decisionHistoryQueue.length],
+          ] as const).map(([key, label, count]) => <button key={key} type="button" aria-pressed={primarySegment === key}
+            onClick={() => {
+              setPrimarySegment(key); setPrId(''); setAction(''); setRemarks('');
+              setCheckedPR(false); setCheckedPOAuth(false); setCheckedPurchaseAuth(false);
+              setSystemError(null); setFieldErrors(null);
+            }}
+            className={`inline-flex min-h-11 items-center gap-2 rounded-lg border px-4 py-3 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 ${primarySegment === key ? 'border-emerald-800 bg-emerald-800 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>
+            {label}<span className={`rounded-md px-2 py-0.5 text-xs tabular-nums ${primarySegment === key ? 'bg-white/15' : 'bg-slate-100'}`}>{queueLoading ? '…' : count}</span>
+          </button>)}
+        </div>
+        {primarySegment === 'DECISION_HISTORY' && <div role="group" aria-label="Admin decision history filters" className="flex flex-wrap gap-2">
+          {([
+            ['ALL', 'All', decisionHistoryQueue.length],
+            ['APPROVED', 'Approved', decisionHistoryQueue.filter((item) => latestAdminDecision(item)?.newState === PRStatus.Approved_Awaiting_PO).length],
+            ['RETURNED', 'Returned', decisionHistoryQueue.filter((item) => latestAdminDecision(item)?.newState === PRStatus.Returned_for_Correction).length],
+            ['DECLINED', 'Declined', decisionHistoryQueue.filter((item) => latestAdminDecision(item)?.newState === PRStatus.Declined).length],
+          ] as const).map(([key, label, count]) => <button key={key} type="button" aria-pressed={historySubFilter === key}
+            onClick={() => { setHistorySubFilter(key); setPrId(''); }}
+            className={`min-h-11 rounded-lg border px-3 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 ${historySubFilter === key ? 'border-slate-800 bg-slate-800 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>{label} {count}</button>)}
+        </div>}
+        <p className="text-sm leading-6 text-slate-600">{primarySegment === 'DECISION_HISTORY' ? 'Review the recorded Admin decision alongside each request’s current status. History is read only.' : 'Select a request to inspect its saved details, supporting evidence, and available decision controls.'}</p>
+      </div>
+
+      <ReviewWorkspace queueTitle={primarySegment === 'ACTION_REQUIRED' ? 'Executive review queue' : 'Decision history'} tasks={queueTasks} loading={queueLoading}
+        emptyMessage={primarySegment === 'ACTION_REQUIRED' ? 'No requests are awaiting Admin Office review.' : 'No matching Admin Office decisions were found.'}
         selectionLabel={primarySegment === 'DECISION_HISTORY' ? 'Viewing' : 'In review'}
-        selectedTaskLabel={
-          primarySegment === 'DECISION_HISTORY'
-            ? 'Viewing past Admin decision'
-            : 'Reviewing selected transaction'
-        }
+        selectedTaskLabel={primarySegment === 'DECISION_HISTORY' ? 'Viewing past Admin decision' : 'Reviewing selected transaction'}
         selectedId={prId}
         onSelect={(id) => {
-          setPrId(id);
-          setAction('');
-          setRemarks('');
-          setCheckedPR(false);
-          setCheckedPOAuth(false);
-          setCheckedPurchaseAuth(false);
-          setFieldErrors(null);
-          setSystemError(null);
+          setPrId(id); setAction(''); setRemarks(''); setCheckedPR(false); setCheckedPOAuth(false); setCheckedPurchaseAuth(false);
+          setFieldErrors(null); setSystemError(null);
           const pr = adminQueue.find((item) => item.id === id);
-
           if (pr?.status === PRStatus.Pending_Admin_Approval) {
-            setAction('APPROVE');
-            setCheckedPR(true);
-            setCheckedPOAuth(true);
-            setCheckedPurchaseAuth(true);
+            setAction('APPROVE'); setCheckedPR(true); setCheckedPOAuth(true); setCheckedPurchaseAuth(true);
           }
+          setIsOption1Enabled(false); setOption1ProofFilePath(''); setAttachedFileName(null);
+        }}>
+        {!selectedPR ? <AdminEmptySelection kind="request" /> : <form onSubmit={handleAdminApproval} className="min-w-0 space-y-5 sm:space-y-6" aria-busy={isPending}>
+          <input type="text" required readOnly tabIndex={-1} aria-label="Selected requisition reference" className="sr-only" value={prId} />
+          {fieldErrors?.prId?._errors && <FieldError>{fieldErrors.prId._errors[0]}</FieldError>}
 
-          setIsOption1Enabled(false);
-          setOption1ProofFilePath('');
-          setAttachedFileName(null);
-        }}
-      >
-        <div className="mb-6 space-y-3">
-          <div
-            className="grid grid-cols-2 rounded-xl border border-slate-200 bg-slate-100 p-1"
-            role="tablist"
-            aria-label="Executive queue view"
-          >
-            {(
-              [
-                ['ACTION_REQUIRED', 'Action required', actionRequiredQueue.length],
-                ['DECISION_HISTORY', 'Decision history', decisionHistoryQueue.length],
-              ] as const
-            ).map(([key, label, count]) => (
-              <button
-                key={key}
-                type="button"
-                role="tab"
-                aria-selected={primarySegment === key}
-                onClick={() => {
-                  setPrimarySegment(key);
-                  setPrId('');
-                  setAction('');
-                  setRemarks('');
-                  setCheckedPR(false);
-                  setCheckedPOAuth(false);
-                  setCheckedPurchaseAuth(false);
-                  setSystemError(null);
-                  setFieldErrors(null);
-                }}
-                className={`flex min-h-10 items-center justify-center gap-2 rounded-lg px-3 text-xs font-semibold transition ${
-                  primarySegment === key
-                    ? 'border border-slate-200 bg-white text-slate-950 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                {label}
-                <span className="rounded-md bg-slate-200/80 px-1.5 py-0.5 font-mono text-[10px] tabular-nums">
-                  {count}
-                </span>
-              </button>
-            ))}
-          </div>
-
-          {primarySegment === 'DECISION_HISTORY' && (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="mr-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-                Show
-              </span>
-              {(
-                [
-                  ['ALL', 'All', decisionHistoryQueue.length],
-                  [
-                    'APPROVED',
-                    'Approved',
-                    decisionHistoryQueue.filter((item) => latestAdminDecision(item)?.newState === PRStatus.Approved_Awaiting_PO).length,
-                  ],
-                  [
-                    'RETURNED',
-                    'Returned',
-                    decisionHistoryQueue.filter(
-                      (item) => latestAdminDecision(item)?.newState === PRStatus.Returned_for_Correction,
-                    ).length,
-                  ],
-                  [
-                    'DECLINED',
-                    'Declined',
-                    decisionHistoryQueue.filter(
-                      (item) => latestAdminDecision(item)?.newState === PRStatus.Declined,
-                    ).length,
-                  ],
-                ] as const
-              ).map(([key, label, count]) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => {
-                    setHistorySubFilter(key);
-                    setPrId('');
-                  }}
-                  className={`rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition ${
-                    historySubFilter === key
-                      ? 'border-slate-700 bg-slate-800 text-white'
-                      : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-                  }`}
-                >
-                  {label} {count}
-                </button>
-              ))}
+          <section aria-label="Request overview" className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-xs sm:p-6">
+            <div className="flex min-w-0 flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-emerald-800">{isDecisionHistoryRecord ? 'Past Admin decision' : 'Request under review'}</p>
+                <h2 className="mt-2 break-words text-xl font-semibold leading-7 text-slate-950 [overflow-wrap:anywhere]">{deriveItemSummaryTitle(selectedPR.itemsPayload)}</h2>
+                <p className="mt-2 break-all font-mono text-xs leading-5 text-slate-600">PR {selectedPR.id}</p>
+              </div>
+              <span className="w-fit shrink-0 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-900">{selectedPR.isDirectPoBypass ? 'Executive pre-approved' : 'Standard review'}</span>
             </div>
-          )}
-        </div>
+            <dl className="mt-5 grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="min-w-0"><dt className="text-xs text-slate-600">Originating office</dt><dd className="mt-1 break-words text-sm font-medium leading-6 text-slate-900 [overflow-wrap:anywhere]">{selectedPR.department.name} ({selectedPR.department.code})</dd></div>
+              <div><dt className="text-xs text-slate-600">Submitted</dt><dd className="mt-1 text-sm font-medium leading-6 text-slate-900">{new Date(selectedPR.createdAt).toLocaleDateString()}</dd></div>
+              <div><dt className="text-xs text-slate-600">Request scope</dt><dd className="mt-1 text-sm font-medium leading-6 text-slate-900">{itemsList.length} line item{itemsList.length === 1 ? '' : 's'}</dd></div>
+              <div className="min-w-0"><dt className="text-xs text-slate-600">Estimated value</dt><dd className="mt-1 break-words text-sm font-semibold leading-6 tabular-nums text-slate-900 [overflow-wrap:anywhere]">{hasPrices ? formatPeso(calculatedGrandTotal) : 'Not provided'}</dd></div>
+            </dl>
+          </section>
 
-        {!selectedPR ? (
-          <EmptySelectionState />
-        ) : (
-          <form onSubmit={handleAdminApproval} className="space-y-6">
-            {/* Hidden immutable reference retained for native/form validation semantics */}
-            <div className="sr-only" aria-hidden="true">
-              <FieldLabel>Target Requisition (Requisition Ref Code)</FieldLabel>
-              <input
-                type="text"
-                required
-                readOnly
-                className={`${inputClass(!!fieldErrors?.prId)} font-mono`}
-                value={prId}
-              />
-              {fieldErrors?.prId?._errors && (
-                <FieldError>{fieldErrors.prId._errors[0]}</FieldError>
-              )}
-            </div>
+          {isDecisionHistoryRecord && <section role="status" className="rounded-xl border border-slate-200 bg-slate-100 p-4 text-sm leading-6 text-slate-700 sm:p-6">
+            <h2 className="font-semibold text-slate-950">Admin decision history · Read only</h2>
+            <p className="mt-2">Recorded Admin decision: <strong>{adminDecisionLog?.newState === PRStatus.Approved_Awaiting_PO ? 'Approved' : adminDecisionLog?.newState === PRStatus.Returned_for_Correction ? 'Returned for correction' : 'Declined'}</strong>.</p>
+            <p className="mt-1">Current request status: <strong>{selectedPR.status.replace(/_/g, ' ')}</strong>.</p>
+            <p className="mt-2">Recorded details and decision notes remain available for reference. This view does not offer decision actions.</p>
+          </section>}
+          {isDecisionHistoryRecord && adminDecisionLog && <section className="min-w-0 rounded-xl border border-amber-200 bg-amber-50 p-4 sm:p-6">
+            <h2 className="text-base font-semibold text-amber-950">Recorded Admin Office decision</h2>
+            <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-amber-950 [overflow-wrap:anywhere]">{adminDecisionLog.remarks || 'No decision note was recorded.'}</p>
+            <p className="mt-4 break-words border-t border-amber-200 pt-3 text-xs leading-5 text-amber-900 [overflow-wrap:anywhere]">{adminDecisionLog.actor.email} · {new Date(adminDecisionLog.createdAt).toLocaleString()}</p>
+          </section>}
 
-            {/* ================================================================ */}
-            {/* EXECUTIVE DOSSIER HEADER                                          */}
-            {/* ================================================================ */}
-            <section
-              aria-labelledby="executive-dossier-heading"
-              className="overflow-hidden rounded-xl border border-slate-200 bg-white"
-            >
-              <div className="flex flex-col gap-4 border-b border-slate-200 bg-slate-50/70 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-                <div className="min-w-0">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-                    Executive review dossier
-                  </p>
-                  <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                    <h2
-                      id="executive-dossier-heading"
-                      className="font-mono text-sm font-semibold text-slate-950"
-                    >
-                      {selectedPR.id}
-                    </h2>
+          {selectedPR.adminProofFilePath && <AdminSection title="Supporting approval document" description="The saved executive approval evidence attached to this request.">
+            <a href={selectedPR.adminProofFilePath} target="_blank" rel="noreferrer" className="inline-flex min-h-11 flex-wrap items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900 hover:bg-emerald-100"><ExternalLink className="size-4 shrink-0" aria-hidden="true" />Open source document<span className="text-xs font-normal">(opens in a new tab)</span></a>
+            {isImageFile(selectedPR.adminProofFilePath) ? <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-2"><img src={selectedPR.adminProofFilePath} alt="Pre-Approved Executive Letter" className="mx-auto max-h-[420px] w-auto max-w-full rounded-md object-contain" /></div> : <p className="mt-4 flex items-center gap-2 text-sm text-slate-700"><FileText className="size-5 shrink-0" aria-hidden="true" />Attached executive approval document</p>}
+            <p className="mt-3 break-all font-mono text-xs leading-5 text-slate-600">{selectedPR.adminProofFilePath}</p>
+          </AdminSection>}
 
-                    {selectedPR.isDirectPoBypass && (
-                      <span className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-emerald-700">
-                        Pre-approved letter
-                      </span>
-                    )}
-                  </div>
-                </div>
+          <AdminSection title="Reason for the request" description="The justification saved by the Requesting Office."><p className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-700 [overflow-wrap:anywhere]">{selectedPR.justification}</p></AdminSection>
+          <AdminSection title="Requested items" description="Review the saved item details and quantities before recording a decision.">
+            {itemsList.length > 0 ? <ol className="divide-y divide-slate-200">{itemsList.map((item, idx) => {
+              const unitPrice = item.unitPrice || 0;
+              const subtotal = unitPrice * item.quantity;
+              return <li key={idx} className="grid min-w-0 gap-3 py-4 first:pt-0 last:pb-0 lg:grid-cols-[minmax(0,1fr)_minmax(180px,36%)]">
+                <div className="min-w-0"><p className="text-xs text-slate-600">Item {idx + 1}</p><p className="mt-1 whitespace-pre-wrap break-words text-sm font-medium leading-6 text-slate-900 [overflow-wrap:anywhere]">{item.itemName}</p></div>
+                <dl className={`grid min-w-0 gap-3 ${hasPrices ? 'sm:grid-cols-3' : ''}`}>
+                  <div><dt className="text-xs text-slate-600">Quantity</dt><dd className="mt-1 text-sm font-semibold tabular-nums text-slate-900">{item.quantity}</dd></div>
+                  {hasPrices && <><div className="min-w-0"><dt className="text-xs text-slate-600">Unit price</dt><dd className="mt-1 break-words text-sm tabular-nums text-slate-900 [overflow-wrap:anywhere]">{unitPrice > 0 ? formatPeso(unitPrice) : '—'}</dd></div><div className="min-w-0"><dt className="text-xs text-slate-600">Subtotal</dt><dd className="mt-1 break-words text-sm font-semibold tabular-nums text-slate-900 [overflow-wrap:anywhere]">{subtotal > 0 ? formatPeso(subtotal) : '—'}</dd></div></>}
+                </dl>
+              </li>;
+            })}</ol> : <p className="text-sm leading-6 text-slate-600">No itemized schedule is available for this requisition.</p>}
+            {hasPrices && <p className="mt-5 break-words border-t border-slate-200 pt-4 text-sm font-semibold tabular-nums text-emerald-900 [overflow-wrap:anywhere]">Estimated total: {formatPeso(calculatedGrandTotal)}</p>}
+          </AdminSection>
 
-                {hasPrices && (
-                  <div className="shrink-0 text-left sm:text-right">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">
-                      Estimated requisition value
-                    </p>
-                    <p className="mt-1 font-mono text-lg font-semibold tabular-nums text-slate-950">
-                      {formatPeso(calculatedGrandTotal)}
-                    </p>
-                  </div>
-                )}
+          {selectedPR.auditLogs && selectedPR.auditLogs.length > 0 && <details className="group min-w-0 rounded-xl border border-slate-200 bg-white">
+            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 p-4 text-sm font-semibold text-slate-800 sm:px-6">Workflow history<ChevronDown className="size-4 shrink-0 transition group-open:rotate-180" aria-hidden="true" /></summary>
+            <ol className="space-y-4 border-t border-slate-200 p-4 sm:p-6">{selectedPR.auditLogs.map((log, idx) => <li key={log.id || idx} className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <p className="break-words text-sm font-semibold text-slate-900">{log.newState.replace(/_/g, ' ')}</p>
+              {log.remarks && <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700 [overflow-wrap:anywhere]">{log.remarks}</p>}
+              <p className="mt-3 break-words text-xs leading-5 text-slate-600 [overflow-wrap:anywhere]">{log.actor.email} · {new Date(log.createdAt).toLocaleString()}</p>
+            </li>)}</ol>
+          </details>}
+
+          {!isDecisionHistoryRecord && <>
+            <AdminSection title="Admin Office decision" description="Choose the outcome to record for this request."><DecisionButtonGroup value={action} onChange={setAction} />{fieldErrors?.action?._errors && <FieldError>{fieldErrors.action._errors[0]}</FieldError>}</AdminSection>
+            {action === 'APPROVE' && <AdminSection title="Required executive authorizations" description="All three authorizations are required to approve this requisition.">
+              <p className={`mb-4 text-sm font-medium ${authorizationCount === 3 ? 'text-emerald-800' : 'text-slate-700'}`}>{authorizationCount} of 3 verified</p>
+              <div className="space-y-3">
+                <CheckItem id="chk-pr" checked={checkedPR} onChange={setCheckedPR} label="Approval of Purchase Request" description="Official verification that requested purchase aligns with institutional academic objectives." />
+                <CheckItem id="chk-po" checked={checkedPOAuth} onChange={setCheckedPOAuth} label="Authorization to Prepare Purchase Order" description="Granting Purchasing Office clearance to bind vendor specifications and generate hard copy PO." />
+                <CheckItem id="chk-item" checked={checkedPurchaseAuth} onChange={setCheckedPurchaseAuth} label="Authorization to Procure Requested Items" description="Authorizing business disbursement and financial check release." />
               </div>
-
-              <div className="grid gap-px bg-slate-200 sm:grid-cols-3">
-                <div className="bg-white px-4 py-3.5 sm:px-5">
-                  <div className="flex items-start gap-3">
-                    <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
-                      <BuildingIcon className="size-4" />
-                    </span>
-
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-                        Originating office
-                      </p>
-                      <p className="mt-1 truncate text-[12px] font-semibold text-slate-800">
-                        {selectedPR.department.name}
-                      </p>
-                      <p className="mt-0.5 font-mono text-[10px] text-slate-400">
-                        {selectedPR.department.code}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white px-4 py-3.5 sm:px-5">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-                    Submission date
-                  </p>
-                  <p className="mt-1.5 text-[12px] font-semibold text-slate-800">
-                    {new Date(selectedPR.createdAt).toLocaleDateString()}
-                  </p>
-                </div>
-
-                <div className="bg-white px-4 py-3.5 sm:px-5">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-                    Procurement scope
-                  </p>
-                  <p className="mt-1.5 text-[12px] font-semibold text-slate-800">
-                    {itemsList.length} line item{itemsList.length === 1 ? '' : 's'}
-                  </p>
-                </div>
+              <div className="mt-5 border-t border-slate-200 pt-5">
+                <CheckItem id="chk-option1-toggle" checked={isOption1Enabled} onChange={(checked) => { setIsOption1Enabled(checked); if (!checked) { setOption1ProofFilePath(''); setAttachedFileName(null); } }} label="Enable Option 1: Off-Campus Remote Sign-Off" description="Use only when the Head of Office is off-campus and granted remote approval via messaging." />
               </div>
-            </section>
-
-            {isDecisionHistoryRecord && (
-              <section
-                className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 sm:px-5"
-                role="status"
-              >
-                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                  Admin decision history · Read only
-                </p>
-                <p className="mt-1 text-[12px] leading-5 text-slate-700">
-                  This requisition was{' '}
-                  {adminDecisionLog?.newState === PRStatus.Approved_Awaiting_PO ? 'approved'
-                    : adminDecisionLog?.newState === PRStatus.Returned_for_Correction ? 'returned for correction' : 'declined'}
-                  {' '}by the Admin Office. Its current status is {selectedPR.status.replace(/_/g, ' ')}.
-                  Recorded details and decision notes remain available for reference. No further Admin Office action can be made from this history view.
-                </p>
-              </section>
-            )}
-
-            {isDecisionHistoryRecord && adminDecisionLog && (
-              <section className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 sm:p-5">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-700">
-                      Recorded Admin Office decision
-                    </p>
-                    <p className="mt-2 whitespace-pre-wrap break-words text-[12px] leading-5 text-amber-950">
-                      {adminDecisionLog.remarks || 'No decision note was recorded.'}
-                    </p>
-                  </div>
-                  <span className="w-fit shrink-0 rounded-md border border-amber-200 bg-white px-2 py-1 text-[9px] font-semibold uppercase text-amber-800">
-                    {adminDecisionLog.newState === PRStatus.Approved_Awaiting_PO ? 'Approved'
-                      : adminDecisionLog.newState === PRStatus.Returned_for_Correction ? 'Returned' : 'Declined'}
-                  </span>
-                </div>
-                <p className="mt-3 border-t border-amber-200/80 pt-3 text-[10px] text-amber-800 break-all">
-                  {adminDecisionLog.actor.email} ·{' '}
-                  {new Date(adminDecisionLog.createdAt).toLocaleString()}
-                </p>
-              </section>
-            )}
-
-            {/* ================================================================ */}
-            {/* EVIDENCE / SUPPORTING DOCUMENTATION                               */}
-            {/* ================================================================ */}
-            {selectedPR.adminProofFilePath && (
-              <section className="overflow-hidden rounded-xl border border-emerald-200 bg-emerald-50/35">
-                <div className="flex flex-col gap-3 border-b border-emerald-200/80 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
-                      Supporting evidence
-                    </p>
-                    <h3 className="mt-1 text-[13px] font-semibold text-emerald-950">
-                      Requesting Office approval document
-                    </h3>
-                  </div>
-
-                  <a
-                    href={selectedPR.adminProofFilePath}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex min-h-9 items-center justify-center rounded-lg border border-emerald-300 bg-white px-3 text-[11px] font-semibold text-emerald-800 transition hover:bg-emerald-50"
-                  >
-                    Open source document
-                  </a>
-                </div>
-
-                <div className="p-4 sm:p-5">
-                  {isImageFile(selectedPR.adminProofFilePath) ? (
-                    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
-                      <img
-                        src={selectedPR.adminProofFilePath}
-                        alt="Pre-Approved Executive Letter"
-                        className="mx-auto max-h-[420px] w-auto rounded-md object-contain"
-                      />
-                      <div className="mt-2 border-t border-slate-100 pt-2">
-                        <p
-                          className="truncate font-mono text-[9px] text-slate-400"
-                          title={selectedPR.adminProofFilePath}
-                        >
-                          {selectedPR.adminProofFilePath}
-                        </p>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3">
-                      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
-                        <DocumentIcon className="size-[18px]" />
-                      </span>
-
-                      <div className="min-w-0">
-                        <p className="text-[12px] font-semibold text-slate-800">
-                          Attached executive approval document
-                        </p>
-                        <p
-                          className="mt-0.5 truncate font-mono text-[10px] text-slate-400"
-                          title={selectedPR.adminProofFilePath}
-                        >
-                          {selectedPR.adminProofFilePath}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </section>
-            )}
-
-            {/* ================================================================ */}
-            {/* PROCUREMENT BASIS                                                 */}
-            {/* ================================================================ */}
-            <section className="rounded-xl border border-slate-200 bg-white">
-              <div className="border-b border-slate-100 px-4 py-3.5 sm:px-5">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-                  Procurement basis
-                </p>
-                <h3 className="mt-1 text-[13px] font-semibold text-slate-900">
-                  Operational justification
-                </h3>
-              </div>
-
-              <div className="px-4 py-4 sm:px-5">
-                <p className="text-[12px] leading-5 text-slate-600">
-                  {selectedPR.justification}
-                </p>
-              </div>
-            </section>
-
-            {/* ================================================================ */}
-            {/* ITEMIZED SCHEDULE                                                 */}
-            {/* ================================================================ */}
-            <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-              <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50/60 px-4 py-4 sm:flex-row sm:items-end sm:justify-between sm:px-5">
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-                    Requisition schedule
-                  </p>
-                  <h3 className="mt-1 text-[13px] font-semibold text-slate-900">
-                    Requested items
-                  </h3>
-                </div>
-
-                {hasPrices && (
-                  <div className="shrink-0 text-left sm:text-right">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">
-                      Estimated total
-                    </p>
-                    <p className="mt-1 font-mono text-sm font-semibold tabular-nums text-emerald-800">
-                      {formatPeso(calculatedGrandTotal)}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {itemsList.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[640px] border-collapse text-left">
-                    <thead>
-                      <tr className="border-b border-slate-200 bg-white">
-                        <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400 sm:px-5">
-                          Item description
-                        </th>
-                        <th className="w-20 px-4 py-3 text-right text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">
-                          Qty
-                        </th>
-                        {hasPrices && (
-                          <>
-                            <th className="w-40 px-4 py-3 text-right text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">
-                              Unit price
-                            </th>
-                            <th className="w-40 px-4 py-3 text-right text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400 sm:px-5">
-                              Subtotal
-                            </th>
-                          </>
-                        )}
-                      </tr>
-                    </thead>
-
-                    <tbody className="divide-y divide-slate-100">
-                      {itemsList.map((item, idx) => {
-                        const unitPrice = item.unitPrice || 0;
-                        const subtotal = unitPrice * item.quantity;
-
-                        return (
-                          <tr key={idx} className="hover:bg-slate-50/55">
-                            <td className="px-4 py-3.5 text-[12px] font-medium text-slate-900 sm:px-5">
-                              {item.itemName}
-                            </td>
-
-                            <td className="px-4 py-3.5 text-right font-mono text-[12px] font-medium tabular-nums text-slate-600">
-                              {item.quantity}
-                            </td>
-
-                            {hasPrices && (
-                              <>
-                                <td className="px-4 py-3.5 text-right font-mono text-[12px] tabular-nums text-slate-500">
-                                  {unitPrice > 0 ? formatPeso(unitPrice) : '—'}
-                                </td>
-
-                                <td className="px-4 py-3.5 text-right font-mono text-[12px] font-semibold tabular-nums text-slate-900 sm:px-5">
-                                  {subtotal > 0 ? formatPeso(subtotal) : '—'}
-                                </td>
-                              </>
-                            )}
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="px-5 py-10 text-center text-[12px] text-slate-400">
-                  No itemized schedule is available for this requisition.
-                </div>
-              )}
-            </section>
-
-            {selectedPR.auditLogs && selectedPR.auditLogs.length > 0 && (
-              <details className="group rounded-xl border border-slate-200 bg-white">
-                <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-4 px-4 py-3 text-[12px] font-semibold text-slate-800 sm:px-5">
-                  Workflow history
-                  <span
-                    aria-hidden="true"
-                    className="shrink-0 text-slate-400 transition group-open:rotate-180"
-                  >
-                    ⌄
-                  </span>
-                </summary>
-                <div className="border-t border-slate-200 px-4 py-2 sm:px-5">
-                  {selectedPR.auditLogs.map((log, idx) => (
-                    <div
-                      key={log.id || idx}
-                      className="grid gap-1 border-b border-slate-100 py-3 last:border-0 sm:grid-cols-[minmax(0,1fr)_auto]"
-                    >
-                      <p className="min-w-0 whitespace-pre-wrap break-words text-[11px] leading-5 text-slate-600">
-                        <span className="font-semibold text-slate-900">
-                          {log.newState.replace(/_/g, ' ')}
-                        </span>
-                        {log.remarks ? ` — ${log.remarks}` : ''}
-                      </p>
-                      <p className="break-all text-[10px] leading-4 text-slate-400 sm:text-right">
-                        {log.actor.email}
-                        <br />
-                        {new Date(log.createdAt).toLocaleString()}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </details>
-            )}
-
-            {!isDecisionHistoryRecord && (
-              <>
-            {/* ================================================================ */}
-            {/* EXECUTIVE DECISION                                                */}
-            {/* ================================================================ */}
-            <section aria-labelledby="executive-decision-heading" className="space-y-3">
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-                  Executive disposition
-                </p>
-                <h3
-                  id="executive-decision-heading"
-                  className="mt-1 text-[13px] font-semibold text-slate-900"
-                >
-                  Select administrative action
-                </h3>
-                <p className="mt-1 text-[11px] leading-4 text-slate-500">
-                  Select the formal disposition that will be recorded against this requisition.
-                </p>
-              </div>
-
-              <div className="grid gap-3 lg:grid-cols-3">
-                <button
-                  type="button"
-                  aria-pressed={action === 'APPROVE'}
-                  onClick={() => setAction('APPROVE')}
-                  className={`rounded-xl border p-4 text-left transition-[border-color,background-color,box-shadow,transform] duration-150 active:translate-y-px ${
-                    action === 'APPROVE'
-                      ? 'border-emerald-400 bg-emerald-50/65 shadow-[0_0_0_1px_rgba(5,150,105,0.08)]'
-                      : 'border-slate-200 bg-white hover:border-emerald-300 hover:bg-emerald-50/35'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <span
-                      className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${
-                        action === 'APPROVE'
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : 'bg-slate-100 text-slate-500'
-                      }`}
-                    >
-                      <ShieldCheckIcon className="size-[18px]" />
-                    </span>
-                    <div>
-                      <p className="text-[12px] font-semibold text-slate-900">
-                        Approve
-                      </p>
-                      <p className="mt-0.5 text-[10px] leading-4 text-slate-500">
-                        Authorize the requisition for PO preparation and procurement.
-                      </p>
-                    </div>
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  aria-pressed={action === 'RETURN_FOR_CORRECTION'}
-                  onClick={() => setAction('RETURN_FOR_CORRECTION')}
-                  className={`rounded-xl border p-4 text-left transition-[border-color,background-color,box-shadow,transform] duration-150 active:translate-y-px ${
-                    action === 'RETURN_FOR_CORRECTION'
-                      ? 'border-amber-400 bg-amber-50/65 shadow-[0_0_0_1px_rgba(217,119,6,0.08)]'
-                      : 'border-slate-200 bg-white hover:border-amber-300 hover:bg-amber-50/35'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <span
-                      className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${
-                        action === 'RETURN_FOR_CORRECTION'
-                          ? 'bg-amber-100 text-amber-700'
-                          : 'bg-slate-100 text-slate-500'
-                      }`}
-                    >
-                      <DocumentIcon className="size-[18px]" />
-                    </span>
-                    <div>
-                      <p className="text-[12px] font-semibold text-slate-900">
-                        Return for correction
-                      </p>
-                      <p className="mt-0.5 text-[10px] leading-4 text-slate-500">
-                        Send the requisition back with required administrative corrections.
-                      </p>
-                    </div>
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  aria-pressed={action === 'DECLINE'}
-                  onClick={() => setAction('DECLINE')}
-                  className={`rounded-xl border p-4 text-left transition-[border-color,background-color,box-shadow,transform] duration-150 active:translate-y-px ${
-                    action === 'DECLINE'
-                      ? 'border-rose-400 bg-rose-50/65 shadow-[0_0_0_1px_rgba(225,29,72,0.08)]'
-                      : 'border-slate-200 bg-white hover:border-rose-300 hover:bg-rose-50/35'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <span
-                      className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${
-                        action === 'DECLINE'
-                          ? 'bg-rose-100 text-rose-700'
-                          : 'bg-slate-100 text-slate-500'
-                      }`}
-                    >
-                      <DocumentIcon className="size-[18px]" />
-                    </span>
-                    <div>
-                      <p className="text-[12px] font-semibold text-slate-900">
-                        Decline
-                      </p>
-                      <p className="mt-0.5 text-[10px] leading-4 text-slate-500">
-                        Reject the requisition and close the executive approval path.
-                      </p>
-                    </div>
-                  </div>
-                </button>
-              </div>
-
-              {fieldErrors?.action?._errors && (
-                <FieldError>{fieldErrors.action._errors[0]}</FieldError>
-              )}
-            </section>
-
-            {/* ================================================================ */}
-            {/* APPROVAL AUTHORIZATION CONTROLS                                   */}
-            {/* ================================================================ */}
-            {action === 'APPROVE' && (
-              <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-                <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50/60 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-                      Regulatory authorization
-                    </p>
-                    <h3 className="mt-1 text-[13px] font-semibold text-slate-900">
-                      Required executive clearances
-                    </h3>
-                  </div>
-
-                  <span
-                    className={`rounded-md border px-2 py-1 text-[10px] font-semibold ${
-                      authorizationCount === 3
-                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                        : 'border-slate-200 bg-white text-slate-500'
-                    }`}
-                  >
-                    {authorizationCount} of 3 verified
-                  </span>
-                </div>
-
-                <div className="space-y-5 px-4 py-5 sm:px-5">
-                  <div className="grid gap-2.5">
-                    <CheckItem
-                      id="chk-pr"
-                      checked={checkedPR}
-                      onChange={setCheckedPR}
-                      label="Approval of Purchase Request"
-                      description="Official verification that requested purchase aligns with institutional academic objectives."
-                    />
-
-                    <CheckItem
-                      id="chk-po"
-                      checked={checkedPOAuth}
-                      onChange={setCheckedPOAuth}
-                      label="Authorization to Prepare Purchase Order"
-                      description="Granting Purchasing Office clearance to bind vendor specifications and generate hard copy PO."
-                    />
-
-                    <CheckItem
-                      id="chk-item"
-                      checked={checkedPurchaseAuth}
-                      onChange={setCheckedPurchaseAuth}
-                      label="Authorization to Procure Requested Items"
-                      description="Authorizing business disbursement and financial check release."
-                    />
-                  </div>
-
-                  <div className="border-t border-slate-100 pt-4">
-                    <CheckItem
-                      id="chk-option1-toggle"
-                      checked={isOption1Enabled}
-                      onChange={(checked) => {
-                        setIsOption1Enabled(checked);
-                        if (!checked) {
-                          setOption1ProofFilePath('');
-                          setAttachedFileName(null);
-                        }
-                      }}
-                      label="Enable Option 1: Off-Campus Remote Sign-Off"
-                      description="Use only when the Head of Office is off-campus and granted remote approval via messaging."
-                    />
-                  </div>
-
-                  {isOption1Enabled && (
-                    <div className="rounded-xl border border-slate-200 bg-slate-50/55 p-4">
-                      <div className="mb-3">
-                        <p className="text-[11px] font-semibold text-slate-800">
-                          Remote approval evidence
-                        </p>
-                        <p className="mt-0.5 text-[10px] leading-4 text-slate-400">
-                          Attach the message screenshot or remote sign-off document that supports
-                          this authorization.
-                        </p>
-                      </div>
-
-                      {attachedFileName || option1ProofFilePath ? (
-                        <div className="flex flex-col gap-3 rounded-lg border border-emerald-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
-                          <div className="flex min-w-0 items-center gap-3">
-                            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
-                              <DocumentIcon className="size-[18px]" />
-                            </span>
-
-                            <div className="min-w-0">
-                              <p className="truncate text-[12px] font-semibold text-slate-800">
-                                {attachedFileName || 'Proof Document Attached'}
-                              </p>
-                              <p
-                                className="mt-0.5 truncate font-mono text-[9px] text-slate-400"
-                                title={option1ProofFilePath}
-                              >
-                                {option1ProofFilePath}
-                              </p>
-                            </div>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setOption1ProofFilePath('');
-                              setAttachedFileName(null);
-                            }}
-                            className="inline-flex min-h-9 items-center justify-center rounded-lg border border-rose-200 bg-white px-3 text-[11px] font-semibold text-rose-700 transition hover:bg-rose-50"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      ) : (
-                        <label
-                          htmlFor="proof-file-input"
-                          className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white px-5 py-7 text-center transition hover:border-emerald-400 hover:bg-emerald-50/30"
-                        >
-                          <input
-                            type="file"
-                            accept="application/pdf,image/*"
-                            onChange={handleProofFileUpload}
-                            className="hidden"
-                            id="proof-file-input"
-                          />
-
-                          <span className="flex size-10 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
-                            <UploadIcon className="size-[18px]" />
-                          </span>
-
-                          <span className="mt-3 text-[12px] font-semibold text-slate-800">
-                            Attach remote sign-off proof
-                          </span>
-                          <span className="mt-1 text-[10px] text-slate-400">
-                            PDF or image
-                          </span>
-                        </label>
-                      )}
-
-                      {fieldErrors?.adminProofFilePath?._errors && (
-                        <FieldError>
-                          {fieldErrors.adminProofFilePath._errors[0]}
-                        </FieldError>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </section>
-            )}
-
-            {/* ================================================================ */}
-            {/* RETURN / DECLINE REMARKS                                          */}
-            {/* ================================================================ */}
-            {(action === 'RETURN_FOR_CORRECTION' || action === 'DECLINE') && (
-              <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
-                <FieldLabel>
-                  {action === 'RETURN_FOR_CORRECTION'
-                    ? 'Reason for Return for Correction'
-                    : 'Reason for Rejection'}
-                </FieldLabel>
-
-                <textarea
-                  required
-                  rows={4}
-                  className={`${inputClass(
-                    !!fieldErrors?.remarks,
-                  )} h-auto resize-y py-3 leading-5`}
-                  placeholder={
-                    action === 'RETURN_FOR_CORRECTION'
-                      ? 'Detail specific corrections required for the department...'
-                      : 'Document justification for rejecting this executive request...'
-                  }
-                  value={remarks}
-                  onChange={(e) => setRemarks(e.target.value)}
-                />
-
-                <p className="mt-1.5 text-[10px] leading-4 text-slate-400">
-                  This explanation becomes part of the requisition audit trail.
-                </p>
-
-                {fieldErrors?.remarks?._errors && (
-                  <FieldError>{fieldErrors.remarks._errors[0]}</FieldError>
-                )}
-              </section>
-            )}
-
-            {/* Optional approval remarks preserve the existing handler behavior */}
-            {action === 'APPROVE' && (
-              <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
-                <FieldLabel>Executive Remarks (Optional)</FieldLabel>
-                <textarea
-                  rows={3}
-                  className={`${inputClass(
-                    !!fieldErrors?.remarks,
-                  )} h-auto resize-y py-3 leading-5`}
-                  placeholder="Add an executive note for the audit trail, if needed..."
-                  value={remarks}
-                  onChange={(e) => setRemarks(e.target.value)}
-                />
-                {fieldErrors?.remarks?._errors && (
-                  <FieldError>{fieldErrors.remarks._errors[0]}</FieldError>
-                )}
-              </section>
-            )}
-
-            {/* ================================================================ */}
-            {/* FINAL EXECUTIVE COMMIT                                            */}
-            {/* ================================================================ */}
-            <section
-              className={`overflow-hidden rounded-xl border shadow-[0_8px_24px_rgba(15,23,42,0.10)] ${
-                action === 'DECLINE'
-                  ? 'border-rose-800 bg-rose-950'
-                  : action === 'RETURN_FOR_CORRECTION'
-                    ? 'border-amber-700 bg-[#2b2111]'
-                    : 'border-slate-800 bg-slate-950'
-              } text-white`}
-            >
-              <div className="grid gap-px bg-white/10 sm:grid-cols-[1fr_auto]">
-                <div className="px-4 py-4 sm:px-5">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/45">
-                    Executive disposition to record
-                  </p>
-
-                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-                    <span className="text-[12px] font-semibold text-white">
-                      {selectedActionLabel}
-                    </span>
-
-                    <span className="font-mono text-[10px] text-white/50">
-                      {selectedPR.id}
-                    </span>
-                  </div>
-
-                  <p className="mt-1.5 max-w-xl text-[10px] leading-4 text-white/50">
-                    Submission records the selected executive action against the requisition and
-                    advances it according to the existing procurement workflow rules.
-                  </p>
-                </div>
-
-                <div className="flex items-center px-4 py-4 sm:px-5">
-                  <ActionButton
-                    type="submit"
-                    disabled={isPending}
-                    className={`w-full whitespace-nowrap sm:w-auto ${
-                      action === 'DECLINE'
-                        ? 'border-rose-500 bg-rose-600 hover:border-rose-400 hover:bg-rose-500'
-                        : action === 'RETURN_FOR_CORRECTION'
-                          ? 'border-amber-400 bg-amber-500 text-slate-950 hover:border-amber-300 hover:bg-amber-400'
-                          : 'border-emerald-500 bg-emerald-600 hover:border-emerald-400 hover:bg-emerald-500'
-                    }`}
-                  >
-                    {isPending ? (
-                      'Committing executive decision…'
-                    ) : (
-                      <>
-                        Submit Executive Decision
-                        <ArrowRightIcon className="size-4" />
-                      </>
-                    )}
-                  </ActionButton>
-                </div>
-              </div>
-            </section>
-              </>
-            )}
-          </form>
-        )}
+              {isOption1Enabled && <div className="mt-4 min-w-0 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <h3 className="text-sm font-semibold text-slate-900">Remote approval evidence</h3><p id="remote-proof-help" className="mt-1 text-sm leading-6 text-slate-600">Attach the message screenshot or remote sign-off document supporting this authorization. PDF or image.</p>
+                {attachedFileName || option1ProofFilePath ? <div className="mt-4 flex min-w-0 flex-col gap-3 rounded-lg border border-emerald-200 bg-white p-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0"><p className="break-words text-sm font-semibold text-slate-900 [overflow-wrap:anywhere]">{attachedFileName || 'Proof Document Attached'}</p><p className="mt-1 break-all font-mono text-xs leading-5 text-slate-600">{option1ProofFilePath}</p></div>
+                  <button type="button" onClick={() => { setOption1ProofFilePath(''); setAttachedFileName(null); }} className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg border border-rose-300 px-3 text-sm font-semibold text-rose-800 hover:bg-rose-50">Remove</button>
+                </div> : <div className="mt-4"><FieldLabel htmlFor="proof-file-input">Attach remote sign-off proof</FieldLabel><input id="proof-file-input" type="file" accept="application/pdf,image/*" onChange={handleProofFileUpload} aria-describedby={`remote-proof-help${fieldErrors?.adminProofFilePath?._errors?.length ? ' remote-proof-error' : ''}`} aria-invalid={Boolean(fieldErrors?.adminProofFilePath?._errors?.length)} className="min-h-11 w-full min-w-0 rounded-lg border border-slate-300 bg-white p-2 text-sm text-slate-700 file:mr-3 file:min-h-9 file:rounded-md file:border-0 file:bg-emerald-50 file:px-3 file:text-sm file:font-semibold file:text-emerald-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700" /></div>}
+                {fieldErrors?.adminProofFilePath?._errors && <FieldError id="remote-proof-error">{fieldErrors.adminProofFilePath._errors[0]}</FieldError>}
+              </div>}
+            </AdminSection>}
+            {(action === 'APPROVE' || action === 'RETURN_FOR_CORRECTION' || action === 'DECLINE') && <AdminSection title={action === 'APPROVE' ? 'Executive remarks' : action === 'RETURN_FOR_CORRECTION' ? 'Corrections required' : 'Reason for declining'}>
+              <FieldLabel htmlFor="admin-remarks">{action === 'APPROVE' ? 'Executive remarks (optional)' : action === 'RETURN_FOR_CORRECTION' ? 'Reason for return for correction' : 'Reason for declining'}</FieldLabel>
+              <textarea id="admin-remarks" required={action !== 'APPROVE'} rows={action === 'APPROVE' ? 3 : 4} className={`${inputClass(!!fieldErrors?.remarks)} resize-y`} placeholder={action === 'APPROVE' ? 'Add an executive note for the audit trail, if needed…' : action === 'RETURN_FOR_CORRECTION' ? 'Detail the specific corrections required for the department…' : 'Document the reason for declining this request…'} value={remarks} onChange={(e) => setRemarks(e.target.value)} aria-invalid={Boolean(fieldErrors?.remarks?._errors?.length)} aria-describedby={`admin-remarks-help${fieldErrors?.remarks?._errors?.length ? ' admin-remarks-error' : ''}`} />
+              <p id="admin-remarks-help" className="mt-2 text-xs leading-5 text-slate-600">{action === 'APPROVE' ? 'Optional. The existing default approval note is used when a full note is not provided.' : 'At least 5 characters. This explanation becomes part of the requisition audit trail.'}</p>
+              {fieldErrors?.remarks?._errors && <FieldError id="admin-remarks-error">{fieldErrors.remarks._errors[0]}</FieldError>}
+            </AdminSection>}
+            <AdminFinalAction title={selectedActionLabel} description={action === 'APPROVE' ? 'Approval authorizes the Purchasing Office to prepare the purchase order.' : action === 'RETURN_FOR_CORRECTION' ? 'The request is returned with your feedback through the existing correction process.' : action === 'DECLINE' ? 'The request will be declined. Your reason remains in its decision history.' : 'Choose an outcome above before recording the Admin Office decision.'}>
+              <ActionButton type="submit" disabled={isPending}>{isPending ? 'Saving executive decision…' : 'Submit executive decision'}</ActionButton>
+            </AdminFinalAction>
+          </>}
+        </form>}
       </ReviewWorkspace>
     </PageShell>
   );
