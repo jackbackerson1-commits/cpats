@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useTransition } from 'react';
-import { ArrowLeft, ClipboardList } from 'lucide-react';
+import { ArrowLeft, Check, CheckCircle2, CircleAlert, ClipboardList, FilePlus2, X } from 'lucide-react';
+import { RequesterPageHeader, requesterPrimaryClass } from '@/components/requesting/RequesterUI';
 import Link from 'next/link';
 import { Role, PRStatus } from '@prisma/client';
 import { AuthUser } from '@/shared/session';
@@ -24,6 +25,7 @@ interface DepartmentPRNode {
   id: string;
   justification: string;
   itemsPayload?: unknown;
+  adminProofFilePath?: string | null;
   status: PRStatus;
   isDirectPoBypass: boolean;
   createdAt: string;
@@ -184,10 +186,10 @@ function LoadingLedger() {
         aria-label="Loading"
       />
       <div className="text-center space-y-1">
-        <p className="text-sm font-bold text-[#064E3B] tracking-wide">
+        <p className="text-sm font-semibold text-[#064E3B] tracking-normal">
           DMC College Foundation, Inc.
         </p>
-        <p className="text-xs text-slate-500 font-medium">
+        <p className="text-sm text-slate-500 font-medium">
           Loading Department Requisition Ledger…
         </p>
       </div>
@@ -201,17 +203,17 @@ function AccessDenied() {
     <div className="min-h-[60vh] flex items-center justify-center p-4 font-sans">
       <div className="max-w-sm w-full bg-white border border-rose-200 rounded-2xl shadow-sm p-6 text-center space-y-4">
         <div className="w-14 h-14 rounded-full bg-rose-50 border border-rose-100 flex items-center justify-center mx-auto">
-          <span className="text-rose-600 text-xl font-black">✕</span>
+          <span className="text-rose-600 text-xl font-semibold">✕</span>
         </div>
         <div>
-          <h2 className="text-base font-black text-slate-900 mb-1">Access Restricted</h2>
-          <p className="text-xs text-slate-500 leading-relaxed">
+          <h2 className="text-base font-semibold text-slate-900 mb-1">Access Restricted</h2>
+          <p className="text-sm text-slate-500 leading-relaxed">
             This ledger is exclusively authorized for Requesting Office personnel under the CPATS institutional pipeline.
           </p>
         </div>
         <Link
           href="/dashboard"
-          className="inline-flex items-center gap-1.5 text-xs font-bold text-[#047857] hover:text-[#064E3B] transition"
+          className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#047857] hover:text-[#064E3B] transition"
         >
           ← Return to Dashboard
         </Link>
@@ -224,7 +226,7 @@ function AccessDenied() {
 function AuditTimeline({ logs, highlightedLogId }: { logs: AuditLogNode[]; highlightedLogId?: string | null }) {
   if (!logs || logs.length === 0) {
     return (
-      <p className="text-xs text-slate-400 italic py-2">
+      <p className="text-sm text-slate-600 italic py-2">
         No decision entries have been logged yet for this requisition.
       </p>
     );
@@ -235,17 +237,17 @@ function AuditTimeline({ logs, highlightedLogId }: { logs: AuditLogNode[]; highl
       {logs.map((log, idx) => {
         const badgeInfo = mapStatusToBadge(log.newState);
         return (
-          <li key={log.id ?? idx} id={log.id ? `audit-${log.id}` : undefined} className={`relative scroll-mt-28 ${log.id === highlightedLogId ? 'rounded-xl ring-2 ring-emerald-500 ring-offset-2' : ''}`}>
+          <li key={log.id ?? idx} id={log.id ? `audit-${log.id}` : undefined} className={`relative scroll-mt-36 ${log.id === highlightedLogId ? 'rounded-xl ring-2 ring-emerald-500 ring-offset-2' : ''}`}>
             <span className="absolute -left-[21px] top-1 w-3 h-3 rounded-full border-2 border-white bg-[#047857] shadow-sm" />
             <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-3 sm:p-4">
               <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
                 <span
-                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border ${badgeInfo.badgeClass}`}
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[12px] font-semibold tracking-normal border ${badgeInfo.badgeClass}`}
                 >
                   <span className={`w-1.5 h-1.5 rounded-full ${badgeInfo.dotClass}`} />
                   {badgeInfo.label}
                 </span>
-                <time className="font-mono text-[10px] tabular-nums text-slate-400">
+                <time className="font-mono text-[12px] tabular-nums text-slate-600">
                   {new Date(log.createdAt).toLocaleString('en-PH', {
                     month: 'short',
                     day: 'numeric',
@@ -255,15 +257,15 @@ function AuditTimeline({ logs, highlightedLogId }: { logs: AuditLogNode[]; highl
                   })}
                 </time>
               </div>
-              <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[10px] text-slate-500">
-                <span className="font-bold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+              <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[12px] text-slate-500">
+                <span className="font-semibold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
                   {log.actor.role.replace(/_/g, ' ')}
                 </span>
-                <span className="text-slate-400">·</span>
+                <span className="text-slate-600">·</span>
                 <span className="min-w-0 break-all sm:break-normal">{log.actor.email}</span>
               </div>
               {log.remarks && log.remarks.trim().length > 0 && (
-                <p className="break-words rounded-lg border border-slate-100 bg-slate-50 p-3 text-xs italic leading-relaxed text-slate-700 [overflow-wrap:anywhere]">
+                <p className="break-words rounded-lg border border-slate-100 bg-slate-50 p-3 text-sm leading-relaxed text-slate-700 [overflow-wrap:anywhere]">
                   &ldquo;{log.remarks}&rdquo;
                 </p>
               )}
@@ -277,68 +279,41 @@ function AuditTimeline({ logs, highlightedLogId }: { logs: AuditLogNode[]; highl
 
 // ─── Stage Progress Bar ────────────────────────────────────────────────────────
 function StageProgressBar({ status }: { status: PRStatus }) {
-  const isTerminalBad =
-    status === PRStatus.Declined || status === PRStatus.Returned_for_Correction;
+  const paused = status === PRStatus.Declined || status === PRStatus.Returned_for_Correction;
   const currentIdx = getStageIndex(status);
-  const stages = ['Draft', 'Budget', 'Admin', 'PO Prep', 'Finance', 'Purchase', 'Received'];
-
-  if (isTerminalBad) {
-    return (
-      <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 text-[10px] font-bold text-orange-800 flex items-center gap-1.5">
-        <span>⚠️</span>
-        <span>
-          {status === PRStatus.Returned_for_Correction
-            ? 'This requisition requires your correction before it can continue.'
-            : 'This requisition has been formally declined.'}
-        </span>
-      </div>
-    );
+  const stages = ['Draft', 'Business review', 'Admin review', 'PO preparation', 'Financial clearance', 'Purchase', 'Received'];
+  if (paused) {
+    return <div className={`flex items-start gap-2 rounded-lg border p-4 text-sm leading-6 ${status === PRStatus.Declined ? 'border-rose-200 bg-rose-50 text-rose-900' : 'border-amber-200 bg-amber-50 text-amber-900'}`}><CircleAlert className="mt-1 size-4 shrink-0" aria-hidden="true" /><p>{status === PRStatus.Returned_for_Correction ? 'This request needs your corrections before it can continue.' : 'This request was declined. You may use its details to prepare a new request.'}</p></div>;
   }
-
   return (
-    <div className="relative pt-0.5">
-      <div className="absolute left-[7.14%] right-[7.14%] top-[10px] h-0.5 rounded-full bg-slate-200" />
-      {currentIdx > 0 && (
-        <div
-          className="absolute left-[7.14%] top-[10px] h-0.5 rounded-full bg-[#047857]"
-          style={{ width: `${(currentIdx / (stages.length - 1)) * 85.72}%` }}
-        />
-      )}
-      <ol className="relative grid grid-cols-7">
-        {stages.map((stage, idx) => {
-          const isComplete = idx < currentIdx;
-          const isCurrent = idx === currentIdx;
-          return (
-            <li key={stage} className="flex min-w-0 flex-col items-center gap-1.5">
-                <div
-                  className={`z-10 flex size-5 items-center justify-center rounded-full border-2 text-[8px] font-black ${
-                    isComplete
-                      ? 'bg-[#047857] border-[#047857] text-white'
-                      : isCurrent
-                      ? 'bg-white border-[#047857] text-[#047857]'
-                      : 'bg-white border-slate-200 text-slate-300'
-                  }`}
-                >
-                  {isComplete ? '✓' : idx + 1}
-                </div>
-                <span
-                  className={`max-w-full text-center text-[7px] font-semibold leading-tight sm:text-[8px] ${
-                    isComplete
-                      ? 'text-[#047857]'
-                      : isCurrent
-                      ? 'text-slate-700'
-                      : 'text-slate-300'
-                  }`}
-                >
-                  {stage}
-                </span>
-            </li>
-          );
-        })}
+    <div>
+      <p className="mb-4 text-sm font-medium text-slate-700">Current stage: <span className="font-semibold text-emerald-900">{stages[currentIdx]}</span></p>
+      <ol className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-7" aria-label="Request progress">
+        {stages.map((stage, idx) => <li key={stage} aria-current={idx === currentIdx ? 'step' : undefined} className={`flex min-w-0 items-start gap-2 rounded-lg border p-3 xl:flex-col ${idx === currentIdx ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200 bg-white'}`}><span className={`grid size-6 shrink-0 place-items-center rounded-full text-sm font-semibold ${idx < currentIdx ? 'bg-emerald-800 text-white' : idx === currentIdx ? 'bg-emerald-100 text-emerald-900' : 'bg-slate-100 text-slate-600'}`}>{idx < currentIdx ? <Check className="size-3.5" aria-hidden="true" /> : idx + 1}</span><span className="min-w-0"><span className="block text-sm font-medium leading-5 text-slate-800">{stage}</span><span className="block text-sm leading-5 text-slate-600">{idx < currentIdx ? 'Completed' : idx === currentIdx ? 'Current' : 'Upcoming'}</span></span></li>)}
       </ol>
     </div>
   );
 }
+
+function RequestItemDetails({ payload }: { payload: unknown }) {
+  let entries: unknown = payload;
+  if (typeof payload === 'string') {
+    try { entries = JSON.parse(payload); } catch { entries = null; }
+  }
+  const items = Array.isArray(entries) ? entries.filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object') : [];
+  return (
+    <section aria-labelledby="request-items-title" className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+      <h2 id="request-items-title" className="text-base font-semibold text-slate-950">Requested items</h2>
+      {items.length === 0 ? <p className="mt-3 text-sm text-slate-600">An itemized list is not available for this record.</p> : <ol className="mt-4 divide-y divide-slate-200">{items.map((item, index) => {
+        const name = typeof item.itemName === 'string' ? item.itemName : typeof item.name === 'string' ? item.name : 'Requested item';
+        const quantity = item.quantity ?? item.qty;
+        const specification = typeof item.specifications === 'string' ? item.specifications : typeof item.specs === 'string' ? item.specs : null;
+        return <li key={index} className="flex min-w-0 flex-col gap-2 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><p className="text-sm text-slate-600">Item {index + 1}</p><p className="mt-1 whitespace-pre-wrap break-words text-sm font-medium leading-6 text-slate-900 [overflow-wrap:anywhere]">{name}</p>{specification && <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-slate-600 [overflow-wrap:anywhere]">{specification}</p>}</div><p className="shrink-0 text-sm text-slate-700">Quantity: <span className="font-semibold tabular-nums">{typeof quantity === 'number' || typeof quantity === 'string' ? String(quantity) : 'Not recorded'}</span></p></li>;
+      })}</ol>}
+    </section>
+  );
+}
+
 
 // ─── Inline Detail / Audit Reader ─────────────────────────────────────────────
 function InspectionPanel({
@@ -357,9 +332,7 @@ function InspectionPanel({
 
   const feedbackLog = node.auditLogs?.find(
     (log) =>
-      log.newState === PRStatus.Returned_for_Correction ||
-      log.newState === PRStatus.Declined ||
-      (log.remarks && log.remarks.trim().length > 0)
+      log.newState === node.status
   );
 
   return (
@@ -376,18 +349,18 @@ function InspectionPanel({
               <button
                 type="button"
                 onClick={onBack}
-                className="mb-3 inline-flex min-h-10 items-center gap-2 rounded-lg px-2.5 text-xs font-bold text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
+                className="mb-3 inline-flex min-h-11 items-center gap-2 rounded-lg px-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
               >
                 <ArrowLeft className="size-4 shrink-0" aria-hidden="true" />
-                Records
+                Back to requests
               </button>
-              <h3
+              <h1
                 id="inspection-title"
-                className="text-sm sm:text-base font-black text-slate-900 leading-snug"
+                className="text-xl sm:text-2xl font-semibold tracking-tight text-slate-950 leading-snug"
               >
-                Requisition Progress &amp; Audit Trail
-              </h3>
-              <p className="text-[10px] sm:text-[11px] font-mono text-slate-400 truncate">
+                Request details
+              </h1>
+              <p className="break-all text-xs font-mono leading-5 text-slate-600">
                 {node.id}
               </p>
               <p id="inspection-description" className="sr-only">
@@ -411,13 +384,13 @@ function InspectionPanel({
             >
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <span
-                  className={`text-xs font-black uppercase tracking-wide flex items-center gap-1.5 ${
+                  className={`text-sm font-semibold tracking-normal flex items-center gap-1.5 ${
                     isReturned ? 'text-orange-900' : 'text-rose-900'
                   }`}
                 >
-                  {isReturned ? '⚠️ Required Revision Note' : '✕ Formal Rejection Notice'}
+                  <CircleAlert className="size-4 shrink-0" aria-hidden="true" />{isReturned ? 'Changes requested' : 'Request declined'}
                 </span>
-                <span className="text-[9px] font-bold bg-white px-2 py-0.5 rounded-md border border-slate-200 text-slate-600 uppercase tracking-wider">
+                <span className="text-[12px] font-semibold bg-white px-2 py-0.5 rounded-md border border-slate-200 text-slate-600 tracking-normal">
                   Evaluator Feedback
                 </span>
               </div>
@@ -425,11 +398,11 @@ function InspectionPanel({
               {feedbackLog ? (
                 <div className="space-y-2">
                   <div className="bg-white rounded-lg border border-slate-200 p-3">
-                    <p className="text-xs text-slate-800 italic leading-relaxed">
+                    <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
                       &ldquo;{feedbackLog.remarks || 'No specific note was provided by the evaluator.'}&rdquo;
                     </p>
                   </div>
-                  <div className="flex flex-col sm:flex-row sm:justify-between text-[10px] text-slate-500 gap-0.5">
+                  <div className="flex flex-col sm:flex-row sm:justify-between text-[12px] text-slate-500 gap-0.5">
                     <span>
                       Issued by:{' '}
                       <strong className="text-slate-700">
@@ -448,7 +421,7 @@ function InspectionPanel({
                   </div>
                 </div>
               ) : (
-                <p className="text-xs italic text-slate-500">
+                <p className="text-sm italic text-slate-500">
                   No specific evaluation remarks have been logged.
                 </p>
               )}
@@ -457,7 +430,7 @@ function InspectionPanel({
                 <Link
                   href={`/dashboard/pr/new?returnId=${encodeURIComponent(node.id)}`}
                   onClick={() => sessionStorage.setItem('cpats:request-template-navigation', `return:${node.id}`)}
-                  className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-orange-600 px-4 text-xs font-bold text-white shadow-sm transition hover:bg-orange-700 active:scale-[0.99]"
+                  className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-orange-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-orange-700 active:scale-[0.99]"
                 >
                   <FileTextIcon className="size-4 shrink-0" />
                   Modify returned request
@@ -468,7 +441,7 @@ function InspectionPanel({
                 <Link
                   href={`/dashboard/pr/new?declineId=${encodeURIComponent(node.id)}`}
                   onClick={() => sessionStorage.setItem('cpats:request-template-navigation', `decline:${node.id}`)}
-                  className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-rose-700 px-4 text-xs font-bold text-white shadow-sm transition hover:bg-rose-800 active:scale-[0.99]"
+                  className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-rose-700 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-800 active:scale-[0.99]"
                 >
                   <FileTextIcon className="size-4 shrink-0" />
                   Start new request using these details
@@ -480,11 +453,11 @@ function InspectionPanel({
           {/* Requisition Scope Summary */}
           <div className="space-y-4 rounded-xl border border-emerald-200/70 bg-[#ECFDF5] p-4 sm:p-5">
             <div className="flex flex-col items-start gap-3 border-b border-emerald-200/50 pb-3 sm:flex-row sm:justify-between">
-              <h4 className="text-sm font-black text-[#064E3B] leading-snug flex-1 min-w-0">
+              <h2 className="text-base font-semibold text-slate-950 leading-6 flex-1 min-w-0 break-words [overflow-wrap:anywhere]">
                 {itemTitle}
-              </h4>
+              </h2>
               <span
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border shrink-0 ${badge.badgeClass}`}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] font-semibold tracking-normal border shrink-0 ${badge.badgeClass}`}
               >
                 <span className={`w-1.5 h-1.5 rounded-full ${badge.dotClass}`} />
                 {badge.label}
@@ -492,17 +465,17 @@ function InspectionPanel({
             </div>
 
             <div className="space-y-1">
-              <span className="text-[9px] font-bold text-emerald-800/70 uppercase tracking-widest block">
-                Operational Justification
+              <span className="text-[12px] font-semibold text-emerald-900 tracking-normal block">
+                Reason for the request
               </span>
-              <p className="text-xs text-[#064E3B] italic leading-relaxed">
+              <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
                 &ldquo;{node.justification}&rdquo;
               </p>
             </div>
 
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 text-[10px]">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 text-[12px]">
               <div className="flex items-center gap-1.5">
-                <span className="text-emerald-800/60 font-semibold">Filed:</span>
+                <span className="text-emerald-900 font-medium">Filed:</span>
                 <span className="font-mono font-semibold text-[#064E3B]">
                   {new Date(node.createdAt).toLocaleDateString('en-PH', {
                     weekday: 'short',
@@ -513,26 +486,29 @@ function InspectionPanel({
                 </span>
               </div>
               {node.isDirectPoBypass && (
-                <span className="font-bold text-[#064E3B] bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-300 uppercase text-[9px] tracking-wider w-fit">
-                  ✓ Pre-Approved Letter on File
+                <span className="font-semibold text-[#064E3B] bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-300 text-[12px] tracking-normal w-fit">
+                  Approval letter on file
                 </span>
               )}
             </div>
           </div>
 
+          <RequestItemDetails payload={node.itemsPayload} />
+          {node.adminProofFilePath && <div className="rounded-xl border border-slate-200 p-4"><h3 className="text-base font-semibold text-slate-900">Approval document</h3><a href={node.adminProofFilePath} target="_blank" rel="noreferrer" className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-emerald-800 underline underline-offset-4">View attached document<span className="sr-only"> (opens in a new tab)</span></a></div>}
+
           {/* Procurement Stage Progress */}
           <div className="space-y-2">
-            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">
-              7-Stage Procurement Pipeline
-            </span>
+            <h2 className="text-base font-semibold text-slate-950">
+              Request progress
+            </h2>
             <StageProgressBar status={node.status} />
           </div>
 
           {/* Official Audit Timeline */}
           <div className="space-y-3">
-            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">
-              Official Decision &amp; Progress History
-            </span>
+            <h2 className="text-base font-semibold text-slate-950">
+              Decision and progress history
+            </h2>
             <AuditTimeline logs={node.auditLogs || []} highlightedLogId={highlightedLogId} />
           </div>
         </div>
@@ -542,10 +518,10 @@ function InspectionPanel({
           <button
             type="button"
             onClick={onBack}
-            className="flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#064E3B] text-xs font-bold text-white transition hover:bg-[#047857] active:scale-[0.99]"
+            className="flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#064E3B] text-sm font-semibold text-white transition hover:bg-[#047857] active:scale-[0.99]"
           >
             <ArrowLeft className="size-4 shrink-0" aria-hidden="true" />
-            Records
+            Back to requests
           </button>
         </div>
       </section>
@@ -568,9 +544,9 @@ function MobileRequisitionCard({
 
   return (
     <article
-      className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-all ${
+      className={`bg-white rounded-xl border shadow-sm overflow-hidden transition-all ${
         isReturned
-          ? 'border-orange-300 ring-1 ring-orange-200'
+          ? 'border-orange-300'
           : isDeclined
           ? 'border-rose-200'
           : isClosed
@@ -599,12 +575,12 @@ function MobileRequisitionCard({
         {/* Card Header */}
         <div className="flex items-start justify-between gap-2">
           <span
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide uppercase border ${badge.badgeClass}`}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] font-semibold tracking-normal border ${badge.badgeClass}`}
           >
             <span className={`w-1.5 h-1.5 rounded-full ${badge.dotClass}`} />
             {badge.label}
           </span>
-          <time className="text-[11px] font-medium text-slate-400 shrink-0">
+          <time className="text-[12px] font-medium text-slate-600 shrink-0">
             {new Date(req.createdAt).toLocaleDateString('en-PH', {
               month: 'short',
               day: 'numeric',
@@ -615,10 +591,10 @@ function MobileRequisitionCard({
 
         {/* Item Summary */}
         <div className="space-y-1">
-          <h2 className="text-sm font-black text-slate-900 leading-snug">
+          <h2 className="text-sm font-semibold text-slate-900 leading-snug break-words [overflow-wrap:anywhere]">
             {itemTitle}
           </h2>
-          <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed italic">
+          <p className="text-sm text-slate-500 line-clamp-2 leading-relaxed italic">
             &ldquo;{req.justification}&rdquo;
           </p>
         </div>
@@ -627,19 +603,19 @@ function MobileRequisitionCard({
         {isReturned && req.auditLogs && req.auditLogs.length > 0 && (() => {
           const log = req.auditLogs.find((l) => l.newState === PRStatus.Returned_for_Correction && l.remarks);
           return log ? (
-            <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 text-[10px] text-orange-900 italic line-clamp-2">
-              ⚠️ &ldquo;{log.remarks}&rdquo;
+            <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 text-[12px] text-orange-900 italic line-clamp-2">
+              &ldquo;{log.remarks}&rdquo;
             </div>
           ) : null;
         })()}
 
         {/* Meta Row */}
-        <div className="flex items-center justify-between text-[10px] text-slate-400 pt-0.5">
+        <div className="flex items-center justify-between text-[12px] text-slate-600 pt-0.5">
           <code className="bg-slate-50 px-2 py-0.5 rounded border border-slate-200 text-slate-600 font-mono font-semibold">
             {req.id.substring(0, 13)}…
           </code>
           {req.isDirectPoBypass && (
-            <span className="font-bold text-[#064E3B] bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 uppercase text-[9px] tracking-wider">
+            <span className="font-semibold text-[#064E3B] bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-[12px] tracking-normal">
               Pre-Approved
             </span>
           )}
@@ -649,7 +625,7 @@ function MobileRequisitionCard({
         <button
           type="button"
           onClick={() => onInspect(req)}
-          className={`w-full min-h-[44px] rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98] border shadow-xs ${
+          className={`w-full min-h-[44px] rounded-xl text-sm font-semibold transition flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98] border shadow-xs ${
             isReturned
               ? 'bg-orange-600 hover:bg-orange-700 text-white border-orange-600'
               : isDeclined
@@ -662,17 +638,17 @@ function MobileRequisitionCard({
           {isReturned ? (
             <>
               <AlertTriangleIcon className="size-4 shrink-0" />
-              <span>View Required Revision</span>
+              <span>View requested changes</span>
             </>
           ) : isDeclined ? (
             <>
               <FileTextIcon className="size-4 shrink-0" />
-              <span>View Decline Notice</span>
+              <span>View decline notice</span>
             </>
           ) : (
             <>
               <HistoryIcon className="size-4 shrink-0" />
-              <span>View Progress &amp; Audit Trail</span>
+              <span>View request details</span>
             </>
           )}
         </button>
@@ -702,7 +678,7 @@ function SummaryStatsBar({ requests }: { requests: DepartmentPRNode[] }) {
         {
           label: 'Action Needed',
           value: stats.actionNeeded,
-          color: stats.actionNeeded > 0 ? 'text-orange-700' : 'text-slate-400',
+          color: stats.actionNeeded > 0 ? 'text-orange-700' : 'text-slate-600',
           bg: stats.actionNeeded > 0 ? 'bg-orange-50 border-orange-200' : 'bg-white border-slate-200',
         },
         { label: 'In Progress', value: stats.inProgress, color: 'text-[#047857]', bg: 'bg-white border-slate-200' },
@@ -712,8 +688,8 @@ function SummaryStatsBar({ requests }: { requests: DepartmentPRNode[] }) {
           key={stat.label}
           className={`${stat.bg} border rounded-xl px-3.5 py-2.5 sm:py-3 flex flex-col gap-0.5`}
         >
-          <span className={`text-xl sm:text-2xl font-black ${stat.color}`}>{stat.value}</span>
-          <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+          <span className={`text-xl sm:text-2xl font-semibold ${stat.color}`}>{stat.value}</span>
+          <span className="text-xs font-semibold text-slate-600 tracking-normal">
             {stat.label}
           </span>
         </div>
@@ -757,16 +733,16 @@ function RequisitionEmptyState({
   };
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl py-14 px-4 text-center shadow-sm">
-      <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mx-auto mb-3.5">
+    <div className="bg-white border border-slate-200 rounded-xl py-14 px-4 text-center shadow-sm">
+      <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 mx-auto mb-3.5">
         <ClipboardList className="w-6 h-6 stroke-[1.75]" aria-hidden="true" />
       </div>
 
-      <h3 className="text-sm font-bold text-slate-800">
-        {isFiltered ? 'No requisitions match this criteria' : 'No purchase requests on file'}
+      <h3 className="text-sm font-semibold text-slate-800">
+        {isFiltered ? 'No requests match these filters' : 'No purchase requests on file'}
       </h3>
 
-      <p className="mt-1 text-xs text-slate-500 max-w-sm mx-auto leading-normal">
+      <p className="mt-1 text-sm text-slate-500 max-w-sm mx-auto leading-normal">
         {isFiltered
           ? getFilteredMessage()
           : 'Your department has not submitted any purchase requests yet.'}
@@ -775,7 +751,7 @@ function RequisitionEmptyState({
       {!isFiltered ? (
         <Link
           href="/dashboard/pr/new"
-          className="mt-4 inline-flex items-center gap-1 text-xs font-bold text-[#047857] hover:text-[#064E3B] transition"
+          className="mt-4 inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-[#047857] hover:text-[#064E3B] transition"
         >
           Submit your department&apos;s first request &rarr;
         </Link>
@@ -783,7 +759,7 @@ function RequisitionEmptyState({
         <button
           type="button"
           onClick={onReset}
-          className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition cursor-pointer"
+          className="mt-4 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-slate-800 transition cursor-pointer"
         >
           Reset filters &amp; search
         </button>
@@ -803,6 +779,7 @@ export default function RequestTrackingPage() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [systemError, setSystemError] = useState<string | null>(null);
+  const [submissionConfirmation, setSubmissionConfirmation] = useState<{ id: string; corrected: boolean } | null>(null);
   const [activeInspectionNode, setActiveInspectionNode] = useState<DepartmentPRNode | null>(null);
   const [highlightedLogId, setHighlightedLogId] = useState<string | null>(null);
   const recordsAreaRef = useRef<HTMLElement>(null);
@@ -846,6 +823,19 @@ export default function RequestTrackingPage() {
           if (!response.ok) throw new Error(result.error || 'Failed to fetch departmental requests.');
           const departmentRequests: DepartmentPRNode[] = result.data || [];
           setRequests(departmentRequests);
+          // Consume transient feedback only after the authorized records load.
+          try {
+            const message = sessionStorage.getItem('cpats:request-submitted');
+            if (message) {
+              sessionStorage.removeItem('cpats:request-submitted');
+              const submitted: unknown = JSON.parse(message);
+              if (submitted && typeof submitted === 'object' && 'id' in submitted && typeof submitted.id === 'string' && departmentRequests.some((record) => record.id === submitted.id)) {
+                setSubmissionConfirmation({ id: submitted.id, corrected: 'corrected' in submitted && submitted.corrected === true });
+              }
+            }
+          } catch {
+            // Optional feedback must not prevent loading the request list.
+          }
           const params = new URLSearchParams(window.location.search);
           const linkedRequest = departmentRequests.find((item) => item.id === params.get('prId'));
           if (linkedRequest) {
@@ -884,6 +874,7 @@ export default function RequestTrackingPage() {
 
   if (userLoading) return <LoadingLedger />;
   if (!activeUser || activeUser.role !== Role.Requesting_Office) return <AccessDenied />;
+  if (isPending && requests.length === 0) return <LoadingLedger />;
 
   // ─── Filtered Records ────────────────────────────────────────────────────────
   const filteredRequests = requests.filter((req) => {
@@ -921,81 +912,37 @@ export default function RequestTrackingPage() {
       <div className="relative min-h-screen bg-[#F8FAFC]">
         {/* DMC Crest Watermark */}
 
-        <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 font-sans antialiased text-slate-900 space-y-4 sm:space-y-6">
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 font-sans antialiased text-slate-900 space-y-4 sm:space-y-6">
 
           {!activeInspectionNode && (
             <>
           {/* ─── Page Header ────────────────────────────────────────────────── */}
-          <header className="space-y-3">
-            {/* Breadcrumb */}
-            {/* After */}
-            <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs text-slate-500 font-medium">
-              <Link href="/dashboard" className="hover:text-emerald-700 transition">
-                Portal
-              </Link>
-              <span>/</span>
-              <span className="text-slate-800 font-semibold truncate">
-                Department Requests
-              </span>
-            </nav>
-
-            {/* Title Area */}
-            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-1 h-8 rounded-full bg-[#047857] shrink-0" aria-hidden="true" />
-                  <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 leading-tight">
-                    Requisition Ledger
-                  </h1>
-                </div>
-                <p className="text-xs sm:text-sm text-slate-500 leading-relaxed pl-3.5">
-                  Monitor approval stages, evaluative notes, and delivery statuses for{' '}
-                  <span className="font-bold text-slate-700">{activeUser.departmentName}</span>.
-                </p>
-              </div>
-
-              {/* Department Context Badge + New PR */}
-              <div className="flex items-center gap-2.5 shrink-0 flex-wrap sm:flex-nowrap">
-                <div className="bg-[#ECFDF5] border border-emerald-200 px-3.5 py-2 rounded-xl text-left shadow-sm">
-                  <span className="block text-[9px] font-bold text-emerald-700 uppercase tracking-widest mb-0.5">
-                    Monitoring Office
-                  </span>
-                  <span className="text-xs font-black text-[#064E3B]">
-                    {activeUser.departmentName}
-                    <span className="font-mono font-normal text-emerald-700 ml-1">
-                      ({activeUser.departmentCode})
-                    </span>
-                  </span>
-                </div>
-
-                <Link
-                  href="/dashboard/pr/new"
-                  className="min-h-[44px] px-4 bg-[#064E3B] hover:bg-[#047857] text-white text-xs font-bold rounded-xl transition shadow-sm inline-flex items-center justify-center gap-1.5 shrink-0 active:scale-[0.98]"
-                >
-                  <span className="text-base leading-none">+</span>
-                  <span>New Request</span>
-                </Link>
-              </div>
+          <RequesterPageHeader title="Track requests" description="Follow your department’s requests, review office feedback, and see what needs your attention." department={`${activeUser.departmentName} (${activeUser.departmentCode})`} action={<Link href="/dashboard/pr/new" className={requesterPrimaryClass}><FilePlus2 className="size-4 shrink-0" aria-hidden="true" />New request</Link>} />
+          {submissionConfirmation && (
+            <div role="status" className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950">
+              <CheckCircle2 className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
+              <div className="min-w-0 flex-1"><p className="font-semibold">{submissionConfirmation.corrected ? 'Corrected request resubmitted' : 'Purchase request submitted'}</p><p className="mt-1 leading-6">Your request is now with the Business Office for review.</p><button type="button" className="mt-2 min-h-11 text-left font-semibold underline underline-offset-4" onClick={() => { const record = requests.find((request) => request.id === submissionConfirmation.id); if (record) openInspection(record); }}>View submitted request</button></div>
+              <button type="button" aria-label="Dismiss submission confirmation" onClick={() => setSubmissionConfirmation(null)} className="grid size-11 shrink-0 place-items-center rounded-lg hover:bg-emerald-100"><X className="size-4" aria-hidden="true" /></button>
             </div>
-          </header>
+          )}
 
           {/* ─── System Error Banner ─────────────────────────────────────────── */}
           {systemError && (
             <div
               role="alert"
-              className="p-4 bg-rose-50 border border-rose-200 border-l-4 border-l-rose-600 rounded-xl text-rose-900 text-xs font-medium flex items-start justify-between gap-2.5 shadow-sm"
+              className="p-4 bg-rose-50 border border-rose-200 border-l-4 border-l-rose-600 rounded-xl text-rose-900 text-sm font-medium flex items-start justify-between gap-2.5 shadow-sm"
             >
               <div className="flex items-start gap-2">
-                <span className="text-rose-600 shrink-0 mt-px">⚠</span>
+                <CircleAlert className="mt-1 size-4 shrink-0" aria-hidden="true" />
                 <span>{systemError}</span>
               </div>
               <button
                 type="button"
                 onClick={() => setSystemError(null)}
-                className="text-rose-400 hover:text-rose-700 font-bold text-sm shrink-0 cursor-pointer"
+                className="grid size-11 shrink-0 cursor-pointer place-items-center rounded-lg text-rose-800 hover:bg-rose-100"
                 aria-label="Dismiss error"
               >
-                ✕
+                <X className="size-4" aria-hidden="true" />
               </button>
             </div>
           )}
@@ -1004,26 +951,26 @@ export default function RequestTrackingPage() {
           <SummaryStatsBar requests={requests} />
 
           {/* ─── Search & Filter Control Bar ────────────────────────────────── */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-3.5 sm:p-4 space-y-3">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-3.5 sm:p-4 space-y-3">
             {/* Search */}
             <div className="relative">
-              <SearchIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 size-4 select-none pointer-events-none"/>
+              <SearchIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-600 size-4 select-none pointer-events-none"/>
               <input
                 type="search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search by equipment name, reference ID, or justification…"
-                className="w-full h-11 pl-10 pr-9 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-[#047857] focus:ring-2 focus:ring-[#047857]/15 outline-none transition"
+                className="w-full h-11 pl-10 pr-9 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder:text-slate-600 focus:bg-white focus:border-[#047857] focus:ring-2 focus:ring-[#047857]/15 outline-none transition"
                 aria-label="Search requisitions"
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-600 text-sm font-semibold cursor-pointer"
                   aria-label="Clear search"
                 >
-                  ✕
+                  <X className="size-4" aria-hidden="true" />
                 </button>
               )}
             </div>
@@ -1040,14 +987,14 @@ export default function RequestTrackingPage() {
       ? [{ id: 'ACTION_REQUIRED', label: `Action Needed (${returnedCount})` }]
       : []),
     { id: 'IN_PROGRESS', label: 'In Progress' },
-    { id: 'DECLINED', label: `Decline Notice (${declinedCount})` },
+    { id: 'DECLINED', label: `Declined (${declinedCount})` },
     { id: 'CLOSED', label: 'Received & Closed' },
   ].map((pill) => (
     <button
       key={pill.id}
       type="button"
       onClick={() => setStatusFilter(pill.id)}
-      className={`min-h-[36px] px-3.5 py-1.5 rounded-lg border text-xs font-semibold transition whitespace-nowrap cursor-pointer shrink-0 inline-flex items-center gap-1.5 ${
+      className={`min-h-[44px] px-3.5 py-1.5 rounded-lg border text-sm font-semibold transition whitespace-nowrap cursor-pointer shrink-0 inline-flex items-center gap-1.5 ${
         statusFilter === pill.id
           ? pill.id === 'ACTION_REQUIRED'
             ? 'bg-orange-600 text-white border-orange-600 shadow-sm'
@@ -1077,7 +1024,7 @@ export default function RequestTrackingPage() {
           )}
 
           {/* ─── Records / Empty State ───────────────────────────────────────── */}
-          <section ref={recordsAreaRef} className="scroll-mt-24" aria-label="Department procurement records">
+          <section ref={recordsAreaRef} className="scroll-mt-36" aria-label="Department procurement records">
           {activeInspectionNode && (
             <InspectionPanel node={activeInspectionNode} onBack={closeInspection} highlightedLogId={highlightedLogId} />
           )}
@@ -1085,7 +1032,7 @@ export default function RequestTrackingPage() {
           {isPending ? (
             <div className="flex items-center justify-center py-16 gap-3 text-slate-500">
               <div className="w-5 h-5 border-2 border-[#047857] border-t-transparent rounded-full animate-spin" />
-              <span className="text-xs font-medium">Refreshing ledger…</span>
+              <span className="text-sm font-medium">Refreshing ledger…</span>
             </div>
           ) : filteredRequests.length === 0 ? (
             <RequisitionEmptyState
@@ -1100,10 +1047,10 @@ export default function RequestTrackingPage() {
           ) : (
             <>
               {/* ═══════════════════════════════════════════════════════════════ */}
-              {/* MOBILE VIEW: Stacked Requisition Cards (hidden on md+)         */}
+              {/* Phone and tablet: stacked request cards                       */}
               {/* ═══════════════════════════════════════════════════════════════ */}
-              <div className="space-y-3 md:hidden">
-                <p className="text-[10px] font-semibold text-slate-400 px-0.5">
+              <div className="space-y-3 xl:hidden">
+                <p className="text-[12px] font-semibold text-slate-600 px-0.5">
                   Showing {filteredRequests.length} of {requests.length} requisitions
                 </p>
                 {filteredRequests.map((req) => (
@@ -1116,15 +1063,15 @@ export default function RequestTrackingPage() {
               </div>
 
               {/* ═══════════════════════════════════════════════════════════════ */}
-              {/* DESKTOP / TABLET VIEW: High-density Tabular Ledger (hidden <md)*/}
+              {/* Desktop: request table when adequate width is available        */}
               {/* ═══════════════════════════════════════════════════════════════ */}
-              <div className="hidden md:block bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+              <div className="hidden xl:block bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
                 {/* Table header context */}
                 <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                  <span className="text-[12px] font-semibold text-slate-600 tracking-normal">
                     Department Procurement Records — {activeUser.departmentCode}
                   </span>
-                  <span className="text-[10px] font-semibold text-slate-400">
+                  <span className="text-[12px] font-semibold text-slate-600">
                     {filteredRequests.length} record{filteredRequests.length !== 1 ? 's' : ''}
                   </span>
                 </div>
@@ -1132,7 +1079,7 @@ export default function RequestTrackingPage() {
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse text-left min-w-[780px]" role="table">
                     <thead>
-                      <tr className="border-b border-slate-200 text-slate-400 text-[10px] font-bold uppercase tracking-widest">
+                      <tr className="border-b border-slate-200 text-slate-600 text-[12px] font-semibold tracking-normal">
                         <th scope="col" className="px-5 py-3.5 whitespace-nowrap">
                           Reference
                         </th>
@@ -1153,7 +1100,7 @@ export default function RequestTrackingPage() {
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+                    <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
                       {filteredRequests.map((req) => {
                         const badge = mapStatusToBadge(req.status);
                         const itemTitle = deriveItemSummaryTitle(req.itemsPayload, req.justification);
@@ -1173,11 +1120,11 @@ export default function RequestTrackingPage() {
                             {/* Reference Code */}
                             <td className="px-5 py-4 whitespace-nowrap">
                               <div className="space-y-1">
-                                <code className="font-mono text-[11px] font-semibold text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">
+                                <code className="font-mono text-[12px] font-semibold text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">
                                   {req.id.substring(0, 13)}…
                                 </code>
                                 {req.isDirectPoBypass && (
-                                  <span className="block text-[9px] font-bold text-[#064E3B] bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 uppercase tracking-wider w-fit">
+                                  <span className="block text-[12px] font-semibold text-[#064E3B] bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 tracking-normal w-fit">
                                     Pre-Approved
                                   </span>
                                 )}
@@ -1186,7 +1133,7 @@ export default function RequestTrackingPage() {
 
                             {/* Item Name */}
                             <td className="px-5 py-4 max-w-[220px]">
-                              <span className="font-bold text-slate-900 line-clamp-2 leading-snug block">
+                              <span className="font-semibold text-slate-900 line-clamp-2 leading-snug block">
                                 {itemTitle}
                               </span>
                             </td>
@@ -1201,7 +1148,7 @@ export default function RequestTrackingPage() {
 
                             {/* Date */}
                             <td className="px-5 py-4 whitespace-nowrap">
-                              <time className="font-mono text-[11px] text-slate-500">
+                              <time className="font-mono text-[12px] text-slate-500">
                                 {new Date(req.createdAt).toLocaleDateString('en-PH', {
                                   month: 'short',
                                   day: 'numeric',
@@ -1213,7 +1160,7 @@ export default function RequestTrackingPage() {
                             {/* Status Badge */}
                             <td className="px-5 py-4 whitespace-nowrap">
                               <span
-                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide uppercase border ${badge.badgeClass}`}
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] font-semibold tracking-normal border ${badge.badgeClass}`}
                               >
                                 <span className={`w-1.5 h-1.5 rounded-full ${badge.dotClass}`} />
                                 {badge.label}
@@ -1225,7 +1172,7 @@ export default function RequestTrackingPage() {
                               <button
                                 type="button"
                                 onClick={() => openInspection(req)}
-                                className={`min-h-[36px] px-3.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer border shadow-xs active:scale-95 inline-flex items-center justify-center gap-1.5 ${
+                                className={`min-h-[44px] px-3.5 py-1.5 rounded-lg text-sm font-semibold transition cursor-pointer border shadow-xs active:scale-95 inline-flex items-center justify-center gap-1.5 ${
                                   isReturned
                                     ? 'bg-orange-600 hover:bg-orange-700 text-white border-orange-600'
                                     : isDeclined
@@ -1238,17 +1185,17 @@ export default function RequestTrackingPage() {
                                 {isReturned ? (
                                   <>
                                     <AlertTriangleIcon className="size-3.5 shrink-0" />
-                                    <span>View Revision</span>
+                                    <span>View requested changes</span>
                                   </>
                                 ) : isDeclined ? (
                                   <>
                                     <FileTextIcon className="size-3.5 shrink-0" />
-                                    <span>Decline Notice</span>
+                                    <span>View decline notice</span>
                                   </>
                                 ) : (
                                   <>
                                     <HistoryIcon className="size-3.5 shrink-0" />
-                                    <span>View History</span>
+                                    <span>View details</span>
                                   </>
                                 )}
                               </button>
@@ -1266,7 +1213,7 @@ export default function RequestTrackingPage() {
           </section>
 
           {/* ─── Page Footer ─────────────────────────────────────────────────── */}
-          <footer className="pb-4 pt-2 flex items-center justify-between text-[10px] text-slate-300 font-medium">
+          <footer className="pb-4 pt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-xs text-slate-600 font-medium">
             <span>CPATS · Campus Procurement Automation &amp; Tracking System</span>
             <span>DMC College Foundation, Inc. · Dipolog</span>
           </footer>

@@ -2,7 +2,8 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useTransition } from 'react';
-import { Zap, ImageIcon, FileText } from 'lucide-react';
+import { CheckCircle2, CircleAlert, ClipboardCheck, ExternalLink, ImageIcon, FileText, LoaderCircle, MessageSquareText, Minus, Plus, Trash2, Upload, X } from 'lucide-react';
+import { RequesterPageHeader, RequesterSection, RequesterFieldError, TrackRequestsLink, requesterFieldClass, requesterPrimaryClass, requesterSecondaryClass } from '@/components/requesting/RequesterUI';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -30,6 +31,22 @@ interface ZodFormErrors {
   justification?: ZodSubErrors;
   adminProofFilePath?: ZodSubErrors;
   items?: Record<string, unknown>;
+}
+
+function itemValidationMessage(errors: ZodFormErrors['items'], index: number, field: string): string | undefined {
+  const row = errors?.[String(index)];
+  if (!row || typeof row !== 'object') return undefined;
+  const entry = (row as Record<string, unknown>)[field];
+  if (!entry || typeof entry !== 'object' || !('_errors' in entry)) return undefined;
+  const messages = entry._errors;
+  return Array.isArray(messages) ? messages.find((message): message is string => typeof message === 'string') : undefined;
+}
+
+function itemValidationMessages(errors: ZodFormErrors['items'], index: number): string[] {
+  return ['itemName', 'quantity', 'unitPrice'].flatMap((field) => {
+    const message = itemValidationMessage(errors, index, field);
+    return message ? [message] : [];
+  });
 }
 
 const ITEM_CATEGORIES = [
@@ -104,6 +121,11 @@ export default function NewPurchaseRequestPage() {
 
   const [systemError, setSystemError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<ZodFormErrors | null>(null);
+  const errorBannerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (systemError) errorBannerRef.current?.focus();
+  }, [systemError]);
 
   useEffect(() => {
     let cancelled = false;
@@ -347,6 +369,15 @@ export default function NewPurchaseRequestPage() {
           throw new Error(result.error || 'A system exception occurred while submitting your request.');
         }
 
+        // Transient presentation feedback only; success follows the server response.
+        try {
+          sessionStorage.setItem('cpats:request-submitted', JSON.stringify({
+            id: result.data?.id || returnedRequestId,
+            corrected: Boolean(returnedRequestId),
+          }));
+        } catch {
+          // Storage restrictions must not block a successful submission.
+        }
         router.refresh();
         router.push('/dashboard/pr/track');
       } catch (err: unknown) {
@@ -357,7 +388,7 @@ export default function NewPurchaseRequestPage() {
 
   if (userLoading) {
     return (
-      <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-3 font-sans">
+      <div role="status" className="min-h-[60vh] flex flex-col items-center justify-center space-y-3 font-sans">
         <div className="w-8 h-8 border-3 border-emerald-700 border-t-transparent rounded-full animate-spin" />
         <span className="text-xs font-semibold text-slate-500 tracking-wide">
           Loading Department Workspace…
@@ -406,639 +437,151 @@ export default function NewPurchaseRequestPage() {
     );
   }
 
+  const modeTitle = returnedRequestId ? 'Correct returned request' : sourceDeclineId ? 'New request from declined record' : 'New purchase request';
+  const submitLabel = returnedRequestId ? 'Resubmit corrected request' : 'Submit purchase request';
+  const nextStep = returnedRequestId
+    ? 'Your corrections update this request and return it to the Business Office for review.'
+    : sourceDeclineId
+    ? 'Submitting creates a new request. The original declined record stays unchanged.'
+    : 'Your request goes to the Business Office for review and recording.';
+
   return (
-    <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 pb-28 lg:pb-8 font-sans antialiased text-slate-900">
-      {/* Breadcrumb & Header */}
-      <div className="mb-4 sm:mb-6 space-y-2">
-        <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs text-slate-500 font-medium">
-          <Link href="/dashboard" className="hover:text-emerald-700 transition">
-            Portal
-          </Link>
-          <span>/</span>
-          <Link href="/dashboard/pr/track" className="hover:text-emerald-700 transition truncate max-w-[140px] sm:max-w-none">
-            Department Requests
-          </Link>
-          <span>/</span>
-          <span className="text-slate-800 font-semibold truncate">
-            {returnedRequestId ? 'Correct Returned Request' : sourceDeclineId ? 'New Request from Decline' : 'New Requisition'}
-          </span>
-        </nav>
-
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 border-b border-slate-200/80 pb-4 sm:pb-5">
-          <div>
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-black tracking-tight text-slate-900">
-              {returnedRequestId ? 'Modify Returned Request' : sourceDeclineId ? 'New Request from Declined Record' : 'New Purchase Request'}
-            </h1>
-            <p className="text-xs sm:text-sm text-slate-500 mt-0.5 max-w-2xl leading-relaxed">
-              {returnedRequestId
-                ? 'Revise the saved request using the evaluator feedback, then resubmit it for Business Office review.'
-                : sourceDeclineId
-                ? 'Use the declined request as a starting point. Submitting creates a new requisition with a new reference.'
-                : 'Submit required departmental equipment or supplies for administrative evaluation and processing.'}
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0">
-            <div className="w-full sm:w-auto bg-emerald-50 border border-emerald-200/80 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-left shadow-2xs">
-              <span className="block text-[9px] sm:text-[10px] font-bold text-emerald-800 uppercase tracking-wider">
-                Requesting Department
-              </span>
-              <span className="text-xs font-bold text-emerald-950">
-                {activeUser.departmentName} ({activeUser.departmentCode})
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
+    <main className="mx-auto w-full max-w-7xl px-4 py-6 pb-36 text-slate-900 sm:px-6 sm:py-8 sm:pb-36 lg:px-8 lg:pb-10">
+      <RequesterPageHeader title={modeTitle} description={returnedRequestId ? 'Use the evaluator’s feedback to revise your saved details, then resubmit the same request.' : sourceDeclineId ? 'Review the saved details and feedback before creating a new request.' : 'Tell us what your department needs and why. You can check your details before submitting.'} department={`${activeUser.departmentName} (${activeUser.departmentCode})`} action={<TrackRequestsLink />} />
 
       {systemError && (
-        <div className="mb-4 sm:mb-6 p-3.5 sm:p-4 bg-rose-50 border-l-4 border-rose-600 rounded-r-xl text-rose-900 text-xs sm:text-sm font-medium flex items-start gap-2.5 shadow-2xs">
-          <span className="text-base leading-none">✕</span>
-          <div className="flex-1">{systemError}</div>
-          <button
-            type="button"
-            onClick={() => setSystemError(null)}
-            className="text-rose-600 hover:text-rose-800 text-xs font-bold cursor-pointer"
-          >
-            Dismiss
-          </button>
+        <div ref={errorBannerRef} role="alert" tabIndex={-1} className="mb-6 flex scroll-mt-36 items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm leading-6 text-rose-900 focus:outline-2 focus:outline-rose-700">
+          <CircleAlert className="mt-1 size-5 shrink-0" aria-hidden="true" />
+          <div className="min-w-0 flex-1"><p className="font-semibold">Please review your request</p><p className="break-words">{systemError}</p>
+            {fieldErrors && <ul className="mt-2 space-y-1">
+              {fieldErrors.justification?._errors?.map((message) => <li key={message}><a className="underline underline-offset-2" href="#justification">Reason for the request: {message}</a></li>)}
+              {fieldErrors.adminProofFilePath?._errors?.map((message) => <li key={message}><a className="underline underline-offset-2" href="#memo-upload">Approval document: {message}</a></li>)}
+              {items.map((item, index) => { const errors = itemValidationMessages(fieldErrors.items, index); return errors.length > 0 ? <li key={item.id}><a className="underline underline-offset-2" href={`#${item.id}-specs`}>Item {index + 1}: {errors.join(' ')}</a></li> : null; })}
+            </ul>}
+          </div>
+          <button type="button" onClick={() => setSystemError(null)} aria-label="Dismiss request error" className="grid size-11 shrink-0 place-items-center rounded-lg hover:bg-rose-100"><X className="size-5" aria-hidden="true" /></button>
         </div>
       )}
 
-      {(returnedRequestId || sourceDeclineId) && evaluatorFeedback && (
-        <div className={`mb-4 rounded-2xl border p-4 shadow-2xs sm:mb-6 sm:p-5 ${returnedRequestId ? 'border-orange-300 bg-orange-50' : 'border-rose-300 bg-rose-50'}`}>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <span className={`block text-[10px] font-black uppercase tracking-widest ${returnedRequestId ? 'text-orange-800' : 'text-rose-800'}`}>
-                {returnedRequestId ? 'Required revision note' : 'Decline notice'}
-              </span>
-              <p className={`mt-1 text-xs font-medium leading-relaxed sm:text-sm ${returnedRequestId ? 'text-orange-950' : 'text-rose-950'}`}>
-                &ldquo;{evaluatorFeedback.remarks || 'No specific decision note was provided.'}&rdquo;
-              </p>
+      {(returnedRequestId || sourceDeclineId) && (
+        <section aria-label="Evaluator feedback" className={`mb-6 rounded-xl border p-4 sm:p-5 ${returnedRequestId ? 'border-amber-300 bg-amber-50' : 'border-rose-200 bg-rose-50'}`}>
+          <div className="flex items-start gap-3">
+            <MessageSquareText className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
+            <div className="min-w-0 flex-1">
+              <h2 className="text-base font-semibold">{returnedRequestId ? 'What needs to change' : 'Feedback on the original request'}</h2>
+              <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 [overflow-wrap:anywhere]">{evaluatorFeedback?.remarks || 'No specific decision note was provided.'}</p>
+              {evaluatorFeedback && <p className="mt-3 text-xs leading-5 text-slate-700">{evaluatorFeedback.actor.role.replace(/_/g, ' ')} · {new Date(evaluatorFeedback.createdAt).toLocaleDateString('en-PH')}</p>}
+              <p className="mt-3 text-sm font-medium leading-6">{nextStep}</p>
+              <p className="mt-1 break-all font-mono text-xs text-slate-600">Original reference: {returnedRequestId || sourceDeclineId}</p>
             </div>
-            <span className={`shrink-0 text-[10px] font-semibold ${returnedRequestId ? 'text-orange-800' : 'text-rose-800'}`}>
-              {evaluatorFeedback.actor.role.replace(/_/g, ' ')} ·{' '}
-              {new Date(evaluatorFeedback.createdAt).toLocaleDateString('en-PH')}
-            </span>
           </div>
-        </div>
+        </section>
       )}
 
-      {/* Main Responsive Grid Workspace */}
-      <form onSubmit={handleSubmit} className="grid grid-cols-12 gap-4 sm:gap-6 items-start">
-        
-        {/* Left Column: Form Canvas (12 cols on mobile, 8 cols on desktop) */}
-        <div className="col-span-12 lg:col-span-8 space-y-4 sm:space-y-6">
-          
-          {/* 1. Itemized Schedule Card */}
-          <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-6 shadow-2xs space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div>
-                <h2 className="text-xs sm:text-sm font-bold text-slate-900">
-                  1. Requested Items Schedule
-                </h2>
-                <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
-                  Itemize equipment or materials needed by your department.
-                </p>
-              </div>
-              <span className="text-[11px] sm:text-xs font-semibold text-emerald-800 bg-emerald-50 px-2.5 sm:px-3 py-1 rounded-full border border-emerald-200 shrink-0">
-                {items.length} {items.length === 1 ? 'Item' : 'Items'}
-              </span>
-            </div>
-
-            {/* Desktop Table Header Legend (Hidden on Mobile) */}
-            <div className="hidden md:grid grid-cols-12 gap-3 px-3 py-1 text-[11px] font-bold text-slate-500 border-b border-slate-100 pb-2">
-              <div className="col-span-4">Item Category</div>
-              <div className="col-span-5">Technical Specifications &amp; Details</div>
-              <div className="col-span-3 text-center">Quantity</div>
-            </div>
-
-            {/* Dynamic Items: Structured Mobile Card / Desktop Row */}
-            <div className="space-y-3">
-              {items.map((item, index) => (
-                <div
-                  key={item.id}
-                  className="bg-slate-50/80 p-3 sm:p-4 rounded-xl border border-slate-200/80 hover:border-slate-300 transition space-y-3 md:space-y-0 md:grid md:grid-cols-12 md:gap-3 md:items-center"
-                >
-                  {/* Mobile Header Sub-Bar (Visible on phones only) */}
-                  <div className="flex md:hidden items-center justify-between border-b border-slate-200/60 pb-2">
-                    <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider bg-white px-2 py-0.5 rounded border border-slate-200">
-                      Line Item #{index + 1}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => removeItemRow(item.id)}
-                      disabled={items.length === 1}
-                      className="text-xs font-semibold text-rose-600 hover:text-rose-800 disabled:opacity-20 transition cursor-pointer p-1"
-                    >
-                      ✕ Remove
-                    </button>
-                  </div>
-
-                  {/* Category Dropdown */}
-                  <div className="md:col-span-4">
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-1 md:hidden">
-                      Item Category
-                    </label>
-                    <select
-                      value={item.category}
-                      onChange={(e) => handleItemChange(item.id, 'category', e.target.value)}
-                      className="w-full h-11 px-3 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm font-medium text-slate-800 focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-700 outline-none transition cursor-pointer"
-                    >
-                      {ITEM_CATEGORIES.map((cat) => (
-                        <option key={cat} value={cat}>
-                          {cat}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Technical Specifications */}
-                  <div className="md:col-span-5">
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-1 md:hidden">
-                      Technical Specifications &amp; Details
-                    </label>
-                    <input
-                      type="text"
-                      required={item.category === 'Other / Custom Item'}
-                      placeholder={
-                        item.category === 'Other / Custom Item'
-                          ? 'Specify brand, model, and item description…'
-                          : 'e.g., 27-inch IPS 1080p 75Hz monitor'
-                      }
-                      value={item.specs}
-                      onChange={(e) => handleItemChange(item.id, 'specs', e.target.value)}
-                      className="w-full h-11 px-3 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-700 outline-none transition"
-                    />
-                  </div>
-
-                  {/* Quantity Stepper & Desktop Delete Button */}
-                  <div className="md:col-span-3 flex items-center justify-between md:justify-center gap-2 pt-1 md:pt-0">
-                    <span className="text-[11px] font-semibold text-slate-600 md:hidden">
-                      Quantity Required:
-                    </span>
-
-                    {/* Integrated Touch Stepper */}
-                    <div className="flex items-center border border-slate-300 rounded-xl bg-white overflow-hidden shadow-2xs h-11">
-                      <button
-                        type="button"
-                        onClick={() => adjustQuantity(item.id, -1)}
-                        className="w-10 h-full flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-slate-800 active:bg-slate-200 transition text-base font-bold cursor-pointer shrink-0"
-                        aria-label="Decrease quantity"
-                      >
-                        –
-                      </button>
-                      <input
-                        type="number"
-                        min={1}
-                        required
-                        value={item.quantity || ''}
-                        onChange={(e) => handleItemChange(item.id, 'quantity', e.target.value)}
-                        className="w-12 text-center text-xs sm:text-sm font-bold text-slate-900 outline-none tabular-nums"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => adjustQuantity(item.id, 1)}
-                        className="w-10 h-full flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-slate-800 active:bg-slate-200 transition text-base font-bold cursor-pointer shrink-0"
-                        aria-label="Increase quantity"
-                      >
-                        +
-                      </button>
+      <form onSubmit={handleSubmit} className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_340px]" aria-busy={isPending}>
+        <div className="min-w-0 space-y-6">
+          <RequesterSection id="requested-items" number="1" title="Requested items" description="List each item, its specifications, and the quantity your department needs.">
+            <div className="space-y-4">
+              {items.map((item, index) => {
+                const errors = itemValidationMessages(fieldErrors?.items, index);
+                const nameError = itemValidationMessage(fieldErrors?.items, index, 'itemName');
+                const quantityError = itemValidationMessage(fieldErrors?.items, index, 'quantity');
+                return (
+                  <fieldset key={item.id} className="min-w-0 rounded-lg border border-slate-200 bg-slate-50/60 p-4">
+                    <legend className="px-1 text-sm font-semibold text-slate-700">Item {index + 1}</legend>
+                    <div className="mb-4 flex items-center justify-between gap-3">
+                      <span className="text-xs text-slate-600">Item details</span>
+                      <button type="button" onClick={() => removeItemRow(item.id)} disabled={items.length === 1} aria-label={`Remove item ${index + 1}`} title={items.length === 1 ? 'Keep at least one item in your request' : 'Remove this item'} className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-rose-800 hover:bg-rose-50 disabled:cursor-not-allowed disabled:text-slate-500"><Trash2 className="size-4" aria-hidden="true" />Remove</button>
                     </div>
-
-                    {/* Desktop Remove Button (Hidden on Mobile) */}
-                    <button
-                      type="button"
-                      onClick={() => removeItemRow(item.id)}
-                      disabled={items.length === 1}
-                      title={items.length === 1 ? 'Schedule must contain at least one item' : 'Remove item'}
-                      className="hidden md:flex w-10 h-11 items-center justify-center rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 disabled:opacity-20 disabled:hover:bg-transparent transition cursor-pointer shrink-0"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Add Line Item Button */}
-            <button
-              type="button"
-              onClick={addItemRow}
-              className="w-full min-h-[44px] py-2.5 border-2 border-dashed border-slate-200 hover:border-emerald-600 hover:bg-emerald-50/40 text-slate-700 hover:text-emerald-800 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
-            >
-              <span>+ Add Another Line Item</span>
-            </button>
-          </div>
-
-          {/* 2. Operational Justification */}
-          <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-6 shadow-2xs space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xs sm:text-sm font-bold text-slate-900">
-                  2. Operational Justification &amp; Purpose <span className="text-rose-600">*</span>
-                </h2>
-                <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
-                  State the administrative or curricular necessity for budget evaluation.
-                </p>
-              </div>
-              <span className="text-[10px] sm:text-[11px] font-medium text-slate-400 shrink-0">
-                Min. 10 chars
-              </span>
-            </div>
-
-            <textarea
-              required
-              rows={3}
-              value={justification}
-              onChange={(e) => setJustification(e.target.value)}
-              placeholder="e.g., Replacement monitors and connection cables for CCS Laboratory 2 to support second-semester programming courses."
-              className="w-full p-3 sm:p-3.5 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-700 outline-none transition leading-relaxed min-h-[88px]"
-            />
-
-            {fieldErrors?.justification?._errors && (
-              <p className="text-xs text-rose-600 font-medium">
-                {fieldErrors.justification._errors[0]}
-              </p>
-            )}
-          </div>
-
-          {/* 3. Requisition Protocol */}
-            <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-6 shadow-2xs space-y-4">
-              <div>
-                <h2 className="text-xs sm:text-sm font-bold text-slate-900">
-                  3. Requisition Protocol
-                </h2>
-                <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
-                  Select your authorization pathway.
-                </p>
-              </div>
-
-              {/* --- INSERT THIS BLOCK --- */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* Standard Department Requisition */}
-                <label
-                  className={`relative flex flex-col justify-between p-4 rounded-xl border-2 cursor-pointer transition-all duration-150 ${
-                    !isDirectPoBypass
-                      ? 'border-emerald-700 bg-emerald-50/30 shadow-xs'
-                      : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <span className="block font-bold text-slate-900 text-xs sm:text-sm">
-                        Standard Department Requisition
-                      </span>
-                      <p className="mt-1 text-[11px] text-slate-500 leading-relaxed">
-                        Sequentially reviewed by the Business Office and Administration before PO creation.
-                      </p>
-                    </div>
-                    <input
-                      type="radio"
-                      name="filingProtocol"
-                      value="standard"
-                      checked={!isDirectPoBypass}
-                      onChange={() => {
-                        setIsDirectPoBypass(false);
-                        clearMemoAttachment();
-                      }}
-                      className="h-4 w-4 accent-emerald-700 cursor-pointer shrink-0 mt-0.5"
-                    />
-                  </div>
-
-                  <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center gap-1.5 text-[10px] font-semibold text-emerald-800">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 shrink-0" />
-                    <span>Standard Sequential Review</span>
-                  </div>
-                </label>
-
-                {/* Executive Pre-Approved Memo */}
-                <label
-                  className={`relative flex flex-col justify-between p-4 rounded-xl border-2 cursor-pointer transition-all duration-150 ${
-                    isDirectPoBypass
-                      ? 'border-emerald-700 bg-emerald-50/30 shadow-xs'
-                      : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <span className="block font-bold text-slate-900 text-xs sm:text-sm">
-                        Executive Pre-Approved Memo
-                      </span>
-                      <p className="mt-1 text-[11px] text-slate-500 leading-relaxed">
-                        For items with a signed executive approval letter already on file.
-                      </p>
-                    </div>
-                    <input
-                      type="radio"
-                      name="filingProtocol"
-                      value="bypass"
-                      checked={isDirectPoBypass}
-                      onChange={() => setIsDirectPoBypass(true)}
-                      className="h-4 w-4 accent-emerald-700 cursor-pointer shrink-0 mt-0.5"
-                    />
-                  </div>
-
-                  <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center gap-1.5 text-[10px] font-semibold text-amber-700">
-                    <Zap className="w-3.5 h-3.5 text-amber-600 shrink-0" aria-hidden="true" />
-                    <span>Fast-Track Recording Protocol</span>
-                  </div>
-                </label>
-              </div>
-
-            {/* Document Uploader */}
-            {isDirectPoBypass && (
-              <div className="pt-3 border-t border-slate-100 space-y-3 animate-in fade-in slide-in-from-top-2 duration-150">
-                <div className="flex flex-wrap items-center justify-between gap-1.5">
-                  <label className="block text-xs font-bold text-slate-800">
-                    Upload Signed Executive Document <span className="text-rose-600">*</span>
-                  </label>
-                  <span className="text-[10px] text-slate-400">PDF, PNG, JPG, or WEBP</span>
-                </div>
-
-                <div className="rounded-xl border-2 border-dashed border-emerald-300 bg-emerald-50/30 p-4 text-center transition hover:border-emerald-500">
-                  <input
-                    ref={memoFileInputRef}
-                    type="file"
-                    accept="application/pdf,image/png,image/jpeg,image/webp"
-                    capture="environment"
-                    onChange={handleProofFileUpload}
-                    className="hidden"
-                    id="memo-file-input"
-                  />
-                  {attachedFileName || adminProofFilePath ? (
-                    <div className="space-y-3 text-left">
-                      {/* Visual Preview Frame */}
-                      {attachedFileIsImage && memoPreviewUrl ? (
-                        <div className="relative overflow-hidden rounded-xl border border-emerald-200/80 bg-slate-900/5 flex items-center justify-center p-2">
-                          <Image
-                            src={memoPreviewUrl}
-                            alt={`Preview of ${attachedFileName || 'the signed executive document'}`}
-                            width={1200}
-                            height={800}
-                            unoptimized
-                            className="max-h-72 w-auto max-w-full rounded-lg object-contain shadow-xs"
-                          />
-                        </div>
-                      ) : (
-                        <div className="flex min-h-28 items-center justify-center rounded-xl border border-emerald-200/80 bg-white p-4 text-center">
-                          <div className="flex flex-col items-center">
-                            <div className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center mb-1.5">
-                              <FileText className="w-5 h-5 stroke-[1.75]" aria-hidden="true" />
-                            </div>
-                            <p className="text-xs font-bold text-slate-700">PDF Document Attached</p>
-                            <p className="mt-0.5 text-[10px] text-slate-500">
-                              A visual inline preview is available for image uploads.
-                            </p>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* File Metadata & Actions Bar */}
-                      <div className="flex flex-col gap-3 rounded-xl border border-emerald-200/90 bg-white p-3 sm:flex-row sm:items-center sm:justify-between shadow-2xs">
-                        <div className="flex min-w-0 items-center gap-3">
-                          <div className="w-9 h-9 rounded-lg bg-emerald-50 border border-emerald-200/70 text-emerald-700 flex items-center justify-center shrink-0">
-                            {attachedFileIsImage ? (
-                              <ImageIcon className="w-4 h-4 stroke-[2]" aria-hidden="true" />
-                            ) : (
-                              <FileText className="w-4 h-4 stroke-[2]" aria-hidden="true" />
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <span className="block truncate text-xs font-bold text-slate-900">
-                              {attachedFileName || 'Executive_Approval_Document.pdf'}
-                            </span>
-                            <span className="block text-[10px] font-medium text-emerald-700">
-                              {uploadingFile
-                                ? 'Uploading secure copy…'
-                                : `${attachedFileIsImage ? 'Image preview ready' : 'Document attached'}${
-                                    formatFileSize(attachedFileSize) ? ` · ${formatFileSize(attachedFileSize)}` : ''
-                                  }`}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          {(memoPreviewUrl || adminProofFilePath) && !uploadingFile && (
-                            <a
-                              href={memoPreviewUrl || adminProofFilePath}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-emerald-800 transition hover:bg-emerald-50"
-                            >
-                              View full size
-                            </a>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => memoFileInputRef.current?.click()}
-                            disabled={uploadingFile}
-                            className="rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
-                          >
-                            Replace
-                          </button>
-                          <button
-                            type="button"
-                            onClick={clearMemoAttachment}
-                            disabled={uploadingFile}
-                            className="rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
-                          >
-                            Remove
-                          </button>
+                    <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_164px]">
+                      <div className="min-w-0">
+                        <label htmlFor={`${item.id}-category`} className="mb-2 block text-sm font-medium text-slate-800">Category</label>
+                        <select id={`${item.id}-category`} value={item.category} onChange={(e) => handleItemChange(item.id, 'category', e.target.value)} className={requesterFieldClass}>{ITEM_CATEGORIES.map((cat) => <option key={cat} value={cat}>{cat}</option>)}</select>
+                      </div>
+                      <div className="min-w-0">
+                        <label htmlFor={`${item.id}-quantity`} className="mb-2 block text-sm font-medium text-slate-800">Quantity <span className="text-rose-700">*</span></label>
+                        <div className="flex h-[50px] w-fit max-w-full items-center overflow-hidden rounded-lg border border-slate-300 bg-white focus-within:ring-2 focus-within:ring-emerald-700/15">
+                          <button type="button" onClick={() => adjustQuantity(item.id, -1)} aria-label={`Decrease quantity for item ${index + 1}`} className="grid h-full w-11 shrink-0 place-items-center text-slate-700 hover:bg-slate-100"><Minus className="size-4" aria-hidden="true" /></button>
+                          <input id={`${item.id}-quantity`} type="number" min={1} required value={item.quantity || ''} onChange={(e) => handleItemChange(item.id, 'quantity', e.target.value)} aria-invalid={Boolean(quantityError)} aria-describedby={quantityError ? `${item.id}-error` : undefined} className="h-full w-16 min-w-0 border-x border-slate-200 bg-white px-1 text-center text-sm font-semibold tabular-nums outline-none" />
+                          <button type="button" onClick={() => adjustQuantity(item.id, 1)} aria-label={`Increase quantity for item ${index + 1}`} className="grid h-full w-11 shrink-0 place-items-center text-slate-700 hover:bg-slate-100"><Plus className="size-4" aria-hidden="true" /></button>
                         </div>
                       </div>
+                      <div className="min-w-0 xl:col-span-2">
+                        <label htmlFor={`${item.id}-specs`} className="mb-2 block text-sm font-medium text-slate-800">{item.category === 'Other / Custom Item' ? 'Item name and specifications' : 'Specifications and details'}{item.category === 'Other / Custom Item' ? <span className="text-rose-700"> *</span> : <span className="ml-1 text-xs font-normal text-slate-600"> (optional)</span>}</label>
+                        <textarea id={`${item.id}-specs`} required={item.category === 'Other / Custom Item'} rows={2} placeholder={item.category === 'Other / Custom Item' ? 'Describe the item, including its name, brand, or model…' : 'For example, 27-inch IPS monitor, 1080p, with HDMI input'} value={item.specs} onChange={(e) => handleItemChange(item.id, 'specs', e.target.value)} aria-invalid={Boolean(nameError)} aria-describedby={errors.length ? `${item.id}-error` : undefined} className={`${requesterFieldClass} scroll-mt-36 resize-y`} />
+                      </div>
                     </div>
-                  ) : (
-                    <div>
-                      <label
-                        htmlFor="memo-file-input"
-                        className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold rounded-xl cursor-pointer transition shadow-2xs active:scale-95"
-                      >
-                        <span>{uploadingFile ? 'Uploading…' : 'Take Photo or Select File'}</span>
-                      </label>
-                      <p className="text-[11px] text-slate-500 mt-2">
-                        Attach a photo of the signed document to preview it before submission, or upload a scanned PDF.
-                      </p>
-                    </div>
-                  )}
-                </div>
+                    <RequesterFieldError id={`${item.id}-error`} message={errors.join(' ')} />
+                  </fieldset>
+                );
+              })}
+            </div>
+            <button type="button" onClick={addItemRow} className={`${requesterSecondaryClass} mt-4 w-full border-dashed`}><Plus className="size-4" aria-hidden="true" />Add another item</button>
+          </RequesterSection>
 
-                {fieldErrors?.adminProofFilePath?._errors && (
-                  <p className="text-xs text-rose-600 font-medium">
-                    {fieldErrors.adminProofFilePath._errors[0]}
-                  </p>
-                )}
+          <RequesterSection id="request-reason" number="2" title="Reason for the request" description="Explain how these items will support your department’s work.">
+            <label htmlFor="justification" className="mb-2 block text-sm font-medium text-slate-800">Justification <span className="text-rose-700">*</span></label>
+            <textarea id="justification" required rows={4} value={justification} onChange={(e) => setJustification(e.target.value)} placeholder="For example, replace damaged monitors in Laboratory 2 so students can complete their programming activities." aria-invalid={Boolean(fieldErrors?.justification?._errors?.length)} aria-describedby={`justification-help${fieldErrors?.justification?._errors?.length ? ' justification-error' : ''}`} className={`${requesterFieldClass} scroll-mt-36 resize-y`} />
+            <p id="justification-help" className="mt-2 text-xs leading-5 text-slate-600">At least 10 characters. Include the purpose and where the items will be used.</p>
+            <RequesterFieldError id="justification-error" message={fieldErrors?.justification?._errors?.[0]} />
+          </RequesterSection>
+
+          <RequesterSection id="approval-document" number="3" title="Approval document" description="Choose the option that matches the approval documents you already have.">
+            <fieldset className="space-y-3">
+              <legend className="sr-only">Request protocol</legend>
+              <label className={`flex cursor-pointer items-start gap-3 rounded-lg border p-4 ${!isDirectPoBypass ? 'border-emerald-700 bg-emerald-50/50' : 'border-slate-200'}`}>
+                <input type="radio" name="filingProtocol" value="standard" checked={!isDirectPoBypass} onChange={() => { setIsDirectPoBypass(false); clearMemoAttachment(); }} className="mt-1 size-4 shrink-0 accent-emerald-800" />
+                <span className="min-w-0"><span className="block text-sm font-semibold text-slate-900">Standard department request</span><span className="mt-1 block text-sm leading-6 text-slate-600">Reviewed by the Business Office and Administration before purchase order preparation.</span></span>
+              </label>
+              <label className={`flex cursor-pointer items-start gap-3 rounded-lg border p-4 ${isDirectPoBypass ? 'border-emerald-700 bg-emerald-50/50' : 'border-slate-200'}`}>
+                <input type="radio" name="filingProtocol" value="bypass" checked={isDirectPoBypass} onChange={() => setIsDirectPoBypass(true)} className="mt-1 size-4 shrink-0 accent-emerald-800" />
+                <span className="min-w-0"><span className="block text-sm font-semibold text-slate-900">Executive pre-approved memo</span><span className="mt-1 block text-sm leading-6 text-slate-600">Attach your signed executive approval letter. The request still goes to the Business Office for recording and review.</span></span>
+              </label>
+            </fieldset>
+
+            {isDirectPoBypass && (
+              <div id="memo-upload" tabIndex={-1} className="mt-5 scroll-mt-36 border-t border-slate-200 pt-5">
+                <p className="text-sm font-semibold text-slate-800">Signed approval document <span className="text-rose-700">*</span></p>
+                <p id="memo-file-help" className="mt-1 text-xs leading-5 text-slate-600">Choose a PDF, PNG, JPG, or WEBP copy of the signed document.</p>
+                <input ref={memoFileInputRef} type="file" accept="application/pdf,image/png,image/jpeg,image/webp" capture="environment" onChange={handleProofFileUpload} className="sr-only" id="memo-file-input" aria-label="Signed executive approval document" aria-describedby={`memo-file-help${fieldErrors?.adminProofFilePath?._errors?.length ? ' memo-file-error' : ''}`} aria-invalid={Boolean(fieldErrors?.adminProofFilePath?._errors?.length)} />
+                <div className="mt-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4">
+                  {attachedFileName || adminProofFilePath ? (
+                    <div className="space-y-4">
+                      {attachedFileIsImage && memoPreviewUrl && <Image src={memoPreviewUrl} alt={`Preview of ${attachedFileName || 'the signed document'}`} width={1200} height={800} unoptimized className="max-h-64 w-auto max-w-full rounded-lg object-contain" />}
+                      <div className="flex min-w-0 items-start gap-3">
+                        {attachedFileIsImage ? <ImageIcon className="mt-1 size-5 shrink-0 text-emerald-800" aria-hidden="true" /> : <FileText className="mt-1 size-5 shrink-0 text-emerald-800" aria-hidden="true" />}
+                        <div className="min-w-0"><p className="break-words text-sm font-medium text-slate-900 [overflow-wrap:anywhere]">{attachedFileName || 'Signed approval document'}</p><p role="status" className="mt-1 text-xs text-slate-600">{uploadingFile ? 'Uploading document…' : `Document attached${formatFileSize(attachedFileSize) ? ` · ${formatFileSize(attachedFileSize)}` : ''}`}</p></div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {(memoPreviewUrl || adminProofFilePath) && !uploadingFile && <a href={memoPreviewUrl || adminProofFilePath} target="_blank" rel="noreferrer" className={requesterSecondaryClass}>View document<ExternalLink className="size-4" aria-hidden="true" /><span className="sr-only">(opens in a new tab)</span></a>}
+                        <button type="button" onClick={() => memoFileInputRef.current?.click()} disabled={uploadingFile} className={requesterSecondaryClass}>Replace</button>
+                        <button type="button" onClick={clearMemoAttachment} disabled={uploadingFile} className={`${requesterSecondaryClass} text-rose-800`}>Remove</button>
+                      </div>
+                    </div>
+                  ) : <div className="space-y-2"><button type="button" onClick={() => memoFileInputRef.current?.click()} disabled={uploadingFile} className={requesterSecondaryClass}><Upload className="size-4" aria-hidden="true" />{uploadingFile ? 'Uploading…' : 'Choose file or take photo'}</button><p className="text-xs leading-5 text-slate-600">Your uploaded document stays attached when you submit.</p></div>}
+                </div>
+                <RequesterFieldError id="memo-file-error" message={fieldErrors?.adminProofFilePath?._errors?.[0]} />
               </div>
             )}
-          </div>
+          </RequesterSection>
         </div>
 
-        {/* Right Column: Sticky Summary Rail on Desktop (Hidden on Mobile) */}
-        <aside className="hidden lg:block lg:col-span-4 lg:sticky lg:top-20 space-y-4">
-          <div className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-2xs space-y-6">
-            <div>
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-                Requisition Scope
-              </span>
-              <div className="text-2xl font-black text-slate-900 tracking-tight mt-1">
-                {items.length} {items.length === 1 ? 'Line Item' : 'Line Items'}
-              </div>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                Totaling {totalPhysicalUnits} physical units requested.
-              </p>
-            </div>
-
-            {/* Scope Breakdown */}
-            <div className="grid grid-cols-2 gap-2.5 py-3 border-y border-slate-100 text-xs">
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/60">
-                <span className="block text-[10px] font-semibold text-slate-400">Unique Items</span>
-                <span className="text-sm font-bold text-slate-800">{items.length} Entries</span>
-              </div>
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/60">
-                <span className="block text-[10px] font-semibold text-slate-400">Total Quantity</span>
-                <span className="text-sm font-bold text-slate-800">{totalPhysicalUnits} Units</span>
-              </div>
-            </div>
-
-            {/* Workflow Roadmap */}
-            <div>
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-2.5">
-                Subsequent Approval Stages
-              </span>
-              <ol className="space-y-3 text-xs">
-                <li className="flex items-start gap-2.5">
-                  <div className="w-5 h-5 rounded-full bg-emerald-700 text-white flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5 shadow-2xs">
-                    1
-                  </div>
-                  <div>
-                    <span className="block font-bold text-slate-900">Requesting Office (Current)</span>
-                    <span className="text-[11px] text-slate-500">Submission of specifications and justification</span>
-                  </div>
-                </li>
-
-                <li className="flex items-start gap-2.5">
-                  <div className="w-5 h-5 rounded-full bg-slate-100 text-slate-600 border border-slate-200 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
-                    2
-                  </div>
-                  <div>
-                    <span className="block font-bold text-slate-800">Business Office</span>
-                    <span className="text-[11px] text-slate-500">Item necessity & budget checking</span>
-                  </div>
-                </li>
-
-                <li className="flex items-start gap-2.5">
-                  <div className="w-5 h-5 rounded-full bg-slate-100 text-slate-600 border border-slate-200 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
-                    3
-                  </div>
-                  <div>
-                    <span className="block font-bold text-slate-800">Office of Administration</span>
-                    <span className="text-[11px] text-slate-500">Executive authorization to procure</span>
-                  </div>
-                </li>
-
-                <li className="flex items-start gap-2.5">
-                  <div className="w-5 h-5 rounded-full bg-slate-100 text-slate-600 border border-slate-200 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
-                    4
-                  </div>
-                  <div>
-                    <span className="block font-bold text-slate-800">Purchasing &amp; Custodian</span>
-                    <span className="text-[11px] text-slate-500">PO binding, financial release & cargo intake</span>
-                  </div>
-                </li>
-              </ol>
-            </div>
-
-            {/* Desktop Action Buttons */}
-            <div className="pt-2 space-y-2.5">
-              <button
-                type="submit"
-                disabled={isPending || uploadingFile}
-                className="w-full min-h-[46px] bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-300 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition shadow-sm active:scale-[0.99] cursor-pointer flex items-center justify-center gap-2"
-              >
-                {isPending ? (
-                  <>
-                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>{returnedRequestId ? 'Resubmitting Correction…' : 'Submitting Request…'}</span>
-                  </>
-                ) : (
-                  <span>{returnedRequestId ? 'Resubmit Corrected Request' : 'Submit Purchase Request'}</span>
-                )}
-              </button>
-
-              {returnedRequestId || sourceDeclineId ? (
-                <button
-                  type="button"
-                  onClick={discardCorrection}
-                  className="flex min-h-[40px] w-full cursor-pointer items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
-                >
-                  Discard Changes &amp; Start New Request
-                </button>
-              ) : (
-                <Link
-                  href="/dashboard/pr/track"
-                  className="w-full min-h-[40px] bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition flex items-center justify-center cursor-pointer"
-                >
-                  Cancel &amp; Return to List
-                </Link>
-              )}
-            </div>
-
-            <div className="pt-2 text-center border-t border-slate-100">
-              <p className="text-[10px] text-slate-400 leading-normal">
-                Compliant with DMC College Foundation IT Procurement Governance &amp; COA audit standards[cite: 1].
-              </p>
-            </div>
+        <aside aria-labelledby="request-summary-title" className="min-w-0 lg:sticky lg:top-36">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs sm:p-6">
+            <div className="flex items-center gap-2"><ClipboardCheck className="size-5 text-emerald-800" aria-hidden="true" /><h2 id="request-summary-title" className="text-base font-semibold text-slate-950">Request summary</h2></div>
+            <p className="mt-2 text-sm leading-6 text-slate-600">Check your items and approval details before submitting.</p>
+            <dl className="mt-5 grid grid-cols-2 gap-4 border-y border-slate-200 py-4"><div><dt className="text-xs text-slate-600">Line items</dt><dd className="mt-1 text-2xl font-semibold tabular-nums text-slate-900">{items.length}</dd></div><div><dt className="text-xs text-slate-600">Total units</dt><dd className="mt-1 text-2xl font-semibold tabular-nums text-slate-900">{totalPhysicalUnits}</dd></div></dl>
+            <ul className="mt-4 max-h-64 space-y-3 overflow-y-auto pr-1" aria-label="Items in your request">{items.map((item, index) => <li key={item.id} className="flex items-start gap-3 text-sm leading-5"><span className="min-w-0 flex-1 break-words [overflow-wrap:anywhere]"><span className="block font-medium text-slate-800">{item.category === 'Other / Custom Item' ? item.specs || `Item ${index + 1}` : item.category}</span>{item.category !== 'Other / Custom Item' && item.specs && <span className="mt-1 block text-xs leading-5 text-slate-600">{item.specs}</span>}</span><span className="shrink-0 font-semibold tabular-nums text-slate-700">× {item.quantity}</span></li>)}</ul>
+            <div className="mt-5 border-t border-slate-200 pt-4"><p className="text-xs font-medium text-slate-600">Request type</p><p className="mt-1 text-sm font-medium text-slate-900">{isDirectPoBypass ? 'Executive pre-approved memo' : 'Standard department request'}</p>{isDirectPoBypass && <p className={`mt-2 flex items-center gap-2 text-xs ${adminProofFilePath ? 'text-emerald-800' : 'text-amber-900'}`}>{adminProofFilePath ? <CheckCircle2 className="size-4 shrink-0" aria-hidden="true" /> : <CircleAlert className="size-4 shrink-0" aria-hidden="true" />}{uploadingFile ? 'Document upload in progress' : adminProofFilePath ? 'Approval document attached' : 'Approval document required'}</p>}</div>
+            <div className="mt-5 rounded-lg bg-emerald-50 p-3.5"><h3 className="text-sm font-semibold text-emerald-950">What happens next</h3><p className="mt-1 text-sm leading-6 text-emerald-900">{nextStep}</p></div>
+            <details className="mt-4 text-sm"><summary className="cursor-pointer py-2 font-medium text-slate-700">About the review process</summary><ol className="mt-2 space-y-3 border-l border-slate-200 pl-4 text-sm leading-6 text-slate-600"><li><strong className="font-medium text-slate-900">Requesting Office</strong><br />Specifications and justification are submitted.</li><li><strong className="font-medium text-slate-900">Business Office</strong><br />Item necessity and budget are checked.</li><li><strong className="font-medium text-slate-900">Administration</strong><br />Executive authorization is recorded.</li><li><strong className="font-medium text-slate-900">Purchasing and Receiving</strong><br />Purchase order, financial release, and receiving are recorded.</li></ol></details>
+            <div className="mt-5 hidden space-y-2 border-t border-slate-200 pt-5 lg:block"><button type="submit" disabled={isPending || uploadingFile} className={`${requesterPrimaryClass} w-full`}>{isPending && <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />}{isPending ? returnedRequestId ? 'Resubmitting…' : 'Submitting…' : submitLabel}</button>{returnedRequestId || sourceDeclineId ? <button type="button" onClick={discardCorrection} className={`${requesterSecondaryClass} w-full text-rose-800`}>Discard changes and start new</button> : <Link href="/dashboard/pr/track" className={`${requesterSecondaryClass} w-full`}>Cancel and return to requests</Link>}</div>
           </div>
         </aside>
 
-        {/* Floating Mobile Sticky Action Bar (Visible exclusively on mobile/tablet) */}
-        <div className="fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur-md border-t border-slate-200/90 p-3 sm:p-4 z-40 lg:hidden shadow-[0_-4px_12px_rgba(0,0,0,0.06)]">
-          <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
-            <div className="space-y-0.5">
-              <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                Total Scope
-              </span>
-              <span className="block text-xs font-extrabold text-slate-900">
-                {items.length} {items.length === 1 ? 'item' : 'items'} ({totalPhysicalUnits} units)
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              {returnedRequestId || sourceDeclineId ? (
-                <button
-                  type="button"
-                  onClick={discardCorrection}
-                  className="flex min-h-[44px] cursor-pointer items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-3.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
-                >
-                  Discard
-                </button>
-              ) : (
-                <Link
-                  href="/dashboard/pr/track"
-                  className="min-h-[44px] px-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl flex items-center justify-center transition cursor-pointer"
-                >
-                  Cancel
-                </Link>
-              )}
-
-              <button
-                type="submit"
-                disabled={isPending || uploadingFile}
-                className="min-h-[44px] px-5 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-300 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition shadow-sm active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2"
-              >
-                {isPending ? (
-                  <>
-                    <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>{returnedRequestId ? 'Resubmitting…' : 'Sending…'}</span>
-                  </>
-                ) : (
-                  <span>{returnedRequestId ? 'Resubmit' : 'Submit PR'}</span>
-                )}
-              </button>
-            </div>
-          </div>
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-4px_16px_rgba(15,23,42,0.04)] lg:hidden">
+          <div className="mx-auto max-w-7xl"><p className="mb-2 text-xs text-slate-600">{items.length} {items.length === 1 ? 'item' : 'items'} · {totalPhysicalUnits} {totalPhysicalUnits === 1 ? 'unit' : 'units'}</p><div className="flex flex-wrap gap-2">{returnedRequestId || sourceDeclineId ? <button type="button" onClick={discardCorrection} className={`${requesterSecondaryClass} text-rose-800`}>Discard</button> : <Link href="/dashboard/pr/track" className={requesterSecondaryClass}>Cancel</Link>}<button type="submit" disabled={isPending || uploadingFile} className={`${requesterPrimaryClass} min-w-0 flex-1 px-3`}>{isPending && <LoaderCircle className="size-4 shrink-0 animate-spin" aria-hidden="true" />}{isPending ? returnedRequestId ? 'Resubmitting…' : 'Submitting…' : returnedRequestId ? 'Resubmit request' : 'Submit request'}</button></div></div>
         </div>
-
       </form>
     </main>
   );
