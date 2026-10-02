@@ -2,13 +2,14 @@
 
 import React, { useEffect, useRef, useState, useTransition } from 'react';
 import { createPortal } from 'react-dom';
+import { ChevronDown, ExternalLink } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { PRStatus, Role } from '@prisma/client';
 import { AuthUser } from '@/shared/session';
 import {
-  PageShell, StageHeader, Card, ErrorBanner, SuccessBanner, FieldLabel, FieldError,
+  PageShell, StageHeader, Card, ErrorBanner, SuccessBanner, FieldLabel, FieldError, BusinessSection, BusinessEmptySelection, BusinessFinalAction,
   inputClass, CheckItem, ReviewWorkspace, DecisionButtonGroup, ActionButton, QueueTask,
-} from '@/components/ui/WorkflowUI';
+} from '@/components/business/BusinessUI';
 
 interface ZodSubErrors { _errors?: string[] }
 interface ZodFormErrors { prId?: ZodSubErrors; action?: ZodSubErrors; remarks?: ZodSubErrors }
@@ -73,31 +74,37 @@ const Icon = ({ path, className = 'h-4 w-4' }: { path: string; className?: strin
 );
 
 function OperationStateModal({ onReviewLatest }: { onReviewLatest: () => void }) {
+  const reviewButtonRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const previousFocus = document.activeElement;
+    reviewButtonRef.current?.focus();
+    return () => { if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus(); };
+  }, []);
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 font-sans" role="dialog" aria-modal="true" aria-labelledby="operation-state-title" aria-describedby="operation-state-description">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 font-sans" role="dialog" aria-modal="true" aria-labelledby="operation-state-title" aria-describedby="operation-state-description" onKeyDown={(event) => { if (event.key === 'Tab') { event.preventDefault(); reviewButtonRef.current?.focus(); } if (event.key === 'Escape') onReviewLatest(); }}>
       <div className="absolute inset-0 bg-slate-950/65" aria-hidden="true" />
-      <section className="relative w-full max-w-md overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-2xl">
+      <section className="relative max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-amber-200 bg-white shadow-2xl">
         <div className="border-b border-amber-100 bg-amber-50 px-5 py-4 sm:px-6">
           <div className="flex items-start gap-3">
             <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-amber-200 bg-white text-amber-700">
               <Icon className="size-5" path="M12 8v4.5M12 16.5h.01M12 3.5 21 20H3L12 3.5Z" />
             </span>
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[.16em] text-amber-700">Evaluation not recorded</p>
+              <p className="text-xs font-medium text-amber-800">Evaluation not recorded</p>
               <h2 id="operation-state-title" className="mt-1 text-base font-semibold text-slate-950">This requisition is no longer awaiting review</h2>
             </div>
           </div>
         </div>
         <div className="space-y-4 px-5 py-5 sm:px-6">
           <p id="operation-state-description" className="text-sm leading-6 text-slate-600">
-            The Requesting Office has already been asked to correct this requisition. Your decision was not saved, and the record cannot receive another Business Office evaluation until it returns to the active review queue.
+            The request changed while this form was open. Your decision was not saved. Review its current status and office feedback before continuing with another evaluation.
           </p>
-          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-xs leading-5 text-slate-600">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm leading-6 text-slate-600">
             Review the current status in Decision history before continuing with another requisition.
           </div>
         </div>
         <div className="flex justify-end border-t border-slate-200 bg-slate-50 px-5 py-4 sm:px-6">
-          <button type="button" onClick={onReviewLatest} className="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-emerald-800 px-4 text-xs font-semibold text-white transition hover:bg-emerald-900">
+          <button ref={reviewButtonRef} type="button" onClick={onReviewLatest} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-emerald-800 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-900">
             <Icon className="size-4 shrink-0" path="M5 12h14M13 6l6 6-6 6" />
             <span>Review decision history</span>
           </button>
@@ -269,107 +276,159 @@ export default function BusinessOfficeEvaluationPage() {
     setBudgetAvailable(false);
   };
 
-  return <PageShell>
-    <StageHeader eyebrow="Step 2 of 6 · Business Office Evaluation" title="Fiscal Evaluation"
-      description="Review procurement necessity, confirm available allocation, and record the Business Office decision."
-      meta={{ label: 'Business Office reviewer', value: activeUser.email }} />
-    {systemError && <ErrorBanner>{systemError}</ErrorBanner>}
-    {successMessage && <SuccessBanner>{successMessage}</SuccessBanner>}
-    {primarySegment === 'DECISION_HISTORY' && historyError && <ErrorBanner>{historyError}</ErrorBanner>}
+  return (
+    <PageShell>
+      <StageHeader title="Fiscal evaluation"
+        description="Review each department’s request, confirm necessity and budget, and record your decision."
+        meta={{ label: 'Signed in as', value: activeUser.email }} />
+      {systemError && <ErrorBanner>{systemError}</ErrorBanner>}
+      {successMessage && <SuccessBanner>{successMessage}</SuccessBanner>}
+      {primarySegment === 'DECISION_HISTORY' && historyError && <ErrorBanner>{historyError}</ErrorBanner>}
 
-    <ReviewWorkspace queueTitle={primarySegment === 'ACTION_REQUIRED' ? 'Fiscal review queue' : 'Decision history'} tasks={queueTasks}
-      loading={queueLoading} emptyMessage={primarySegment === 'ACTION_REQUIRED' ? 'No requisitions are awaiting fiscal evaluation.' : 'No matching records found in decision history.'}
-      selectionLabel={primarySegment === 'DECISION_HISTORY' ? 'Viewing' : 'In review'}
-      selectedTaskLabel={primarySegment === 'DECISION_HISTORY' ? 'Viewing past decision' : 'Reviewing selected transaction'}
-      selectedId={targetPrId} onSelect={(id) => { setTargetPrId(id); setEvaluationAction(''); setRemarks(''); setNecessityVerified(false); setBudgetAvailable(false); setFieldErrors(null); setSystemError(null); const pr = displayedQueueNodes.find((item) => item.id === id); if (pr && isAdminReturnForBusiness(pr) && primarySegment === 'ACTION_REQUIRED') { setEvaluationAction('APPROVE'); setRemarks(latestBusinessDecision(pr)?.remarks || 'Fiscal review revised following Admin Office feedback.'); setNecessityVerified(true); setBudgetAvailable(true); } else if (pr?.status === PRStatus.Pending_Business_Approval && pr.isDirectPoBypass) { setEvaluationAction('APPROVE'); setNecessityVerified(true); setBudgetAvailable(true); } }}>
-
-      <div className="mb-6 space-y-3">
-        <div className="grid grid-cols-2 rounded-xl border border-slate-200 bg-slate-100 p-1" role="tablist" aria-label="Queue view">
+      <div className="space-y-3">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Queue view">
           {([['ACTION_REQUIRED', 'Action required', actionRequiredQueue.length], ['DECISION_HISTORY', 'Decision history', decisionHistoryQueue.length]] as const).map(([key, label, count]) => (
-            <button key={key} type="button" role="tab" aria-selected={primarySegment === key} onClick={() => { setPrimarySegment(key); setTargetPrId(''); }}
-              className={`flex min-h-10 items-center justify-center gap-2 rounded-lg px-3 text-xs font-semibold transition ${primarySegment === key ? 'border border-slate-200 bg-white text-slate-950 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>
-              {label}<span className="rounded-md bg-slate-200/80 px-1.5 py-0.5 font-mono text-[10px] tabular-nums">{count}</span>
+            <button key={key} type="button" aria-pressed={primarySegment === key}
+              onClick={() => { setPrimarySegment(key); setTargetPrId(''); }}
+              className={`inline-flex min-h-11 items-center gap-2 rounded-lg border px-4 py-3 text-sm font-semibold transition ${primarySegment === key ? 'border-emerald-800 bg-emerald-800 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>
+              {label}<span className={`rounded-md px-2 py-0.5 text-xs tabular-nums ${primarySegment === key ? 'bg-white/15' : 'bg-slate-100'}`}>{queueLoading ? '…' : count}</span>
             </button>
           ))}
         </div>
-        {primarySegment === 'DECISION_HISTORY' && <div className="flex flex-wrap items-center gap-2">
-          <span className="mr-1 text-[10px] font-semibold uppercase tracking-[.14em] text-slate-400">Show</span>
-          {([['ALL', 'All', decisionHistoryQueue.length], ['APPROVED', 'Approved', decisionHistoryQueue.filter(i => historyDecisionState(i) === PRStatus.Pending_Admin_Approval).length], ['RETURNED', 'Returned', decisionHistoryQueue.filter(i => historyDecisionState(i) === PRStatus.Returned_for_Correction).length], ['DECLINED', 'Declined', decisionHistoryQueue.filter(i => historyDecisionState(i) === PRStatus.Declined).length]] as const).map(([key, label, count]) =>
-            <button key={key} type="button" onClick={() => { setHistorySubFilter(key); setTargetPrId(''); }} className={`rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition ${historySubFilter === key ? 'border-slate-700 bg-slate-800 text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}>{label} {count}</button>)}
-        </div>}
+        {primarySegment === 'DECISION_HISTORY' && (
+          <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Decision history filters">
+            {([['ALL', 'All', decisionHistoryQueue.length], ['APPROVED', 'Approved', decisionHistoryQueue.filter(i => historyDecisionState(i) === PRStatus.Pending_Admin_Approval).length], ['RETURNED', 'Returned', decisionHistoryQueue.filter(i => historyDecisionState(i) === PRStatus.Returned_for_Correction).length], ['DECLINED', 'Declined', decisionHistoryQueue.filter(i => historyDecisionState(i) === PRStatus.Declined).length]] as const).map(([key, label, count]) => (
+              <button key={key} type="button" aria-pressed={historySubFilter === key}
+                onClick={() => { setHistorySubFilter(key); setTargetPrId(''); }}
+                className={`min-h-11 rounded-lg border px-3 py-2 text-sm font-medium transition ${historySubFilter === key ? 'border-slate-800 bg-slate-800 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>
+                {label} <span className="ml-1 tabular-nums">{count}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        <p className="text-sm leading-6 text-slate-600">{primarySegment === 'DECISION_HISTORY'
+          ? 'Review recorded decisions and the current status of each request. History is read only.'
+          : 'Select a request to evaluate. Admin returns include your previous review and the requested changes.'}</p>
       </div>
 
-      <form onSubmit={handleEvaluationSubmit} className="space-y-6">
-        {!selectedPR ? <div className="flex min-h-72 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50/60 px-6 text-center">
-          <div className="mb-4 grid h-11 w-11 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm"><Icon path="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></div>
-          <h2 className="text-sm font-semibold text-slate-800">Select a requisition to begin</h2><p className="mt-1 max-w-sm text-xs leading-5 text-slate-500">Choose a record from the queue to review its procurement basis, line items, and fiscal controls.</p>
-        </div> : <>
-          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-200 bg-slate-950 px-5 py-5 text-white sm:px-6">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div><p className="text-[10px] font-semibold uppercase tracking-[.18em] text-emerald-300">Fiscal review dossier</p>
-                  <h2 className="mt-1.5 text-lg font-semibold tracking-tight">{deriveItemSummaryTitle(selectedPR.itemsPayload)}</h2>
-                  <p className="mt-1 break-all font-mono text-[11px] text-slate-400">PR {selectedPR.id}</p></div>
-                <span className={`w-fit rounded-md border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider ${selectedPR.isDirectPoBypass ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-200' : 'border-white/15 bg-white/5 text-slate-300'}`}>{selectedPR.isDirectPoBypass ? 'Fast-track' : 'Standard review'}</span>
+      <ReviewWorkspace queueTitle={primarySegment === 'ACTION_REQUIRED' ? 'Fiscal review queue' : 'Decision history'} tasks={queueTasks}
+        loading={queueLoading} emptyMessage={primarySegment === 'ACTION_REQUIRED' ? 'No requisitions are awaiting fiscal evaluation.' : 'No matching records found in decision history.'}
+        selectionLabel={primarySegment === 'DECISION_HISTORY' ? 'Viewing' : 'In review'}
+        selectedTaskLabel={primarySegment === 'DECISION_HISTORY' ? 'Viewing past decision' : 'Reviewing selected transaction'}
+        selectedId={targetPrId}
+        onSelect={(id) => { setTargetPrId(id); setEvaluationAction(''); setRemarks(''); setNecessityVerified(false); setBudgetAvailable(false); setFieldErrors(null); setSystemError(null); const pr = displayedQueueNodes.find((item) => item.id === id); if (pr && isAdminReturnForBusiness(pr) && primarySegment === 'ACTION_REQUIRED') { setEvaluationAction('APPROVE'); setRemarks(latestBusinessDecision(pr)?.remarks || 'Fiscal review revised following Admin Office feedback.'); setNecessityVerified(true); setBudgetAvailable(true); } else if (pr?.status === PRStatus.Pending_Business_Approval && pr.isDirectPoBypass) { setEvaluationAction('APPROVE'); setNecessityVerified(true); setBudgetAvailable(true); } }}>
+        <form onSubmit={handleEvaluationSubmit} className="min-w-0 space-y-6" aria-busy={isPending}>
+          {!selectedPR ? <BusinessEmptySelection kind="request" /> : <>
+            <section aria-label="Request overview" className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-xs sm:p-6">
+              <div className="flex min-w-0 flex-col items-start gap-3 border-b border-slate-200 pb-5 sm:flex-row sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-emerald-800">{isDecisionHistoryRecord ? 'Past decision' : selectedAdminReturn ? 'Revised fiscal review' : 'Request under review'}</p>
+                  <h2 className="mt-2 break-words text-lg font-semibold leading-7 text-slate-950 [overflow-wrap:anywhere]">{deriveItemSummaryTitle(selectedPR.itemsPayload)}</h2>
+                  <p className="mt-2 break-all font-mono text-xs leading-5 text-slate-600">PR {selectedPR.id}</p>
+                </div>
+                <span className="shrink-0 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-900">{selectedPR.isDirectPoBypass ? 'Executive pre-approved' : 'Standard review'}</span>
               </div>
-            </div>
-            <div className="grid divide-y divide-slate-200 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-              {[['Originating office', `${selectedPR.department.name} (${selectedPR.department.code})`], ['Submitted', new Date(selectedPR.createdAt).toLocaleDateString()], ['Estimated value', hasPrices ? `₱${calculatedGrandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'Not provided']].map(([label, value]) =>
-                <div key={label} className="min-w-0 px-5 py-4"><p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{label}</p><p className="mt-1 break-words text-sm font-semibold text-slate-800 tabular-nums">{value}</p></div>)}
-            </div>
-          </section>
+              <dl className="mt-5 grid min-w-0 gap-4 sm:grid-cols-3">
+                {[['Originating office', `${selectedPR.department.name} (${selectedPR.department.code})`], ['Submitted', new Date(selectedPR.createdAt).toLocaleDateString()], ['Estimated value', hasPrices ? `₱${calculatedGrandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'Not provided']].map(([label, value]) => (
+                  <div key={label} className="min-w-0"><dt className="text-xs text-slate-600">{label}</dt><dd className="mt-1 break-words text-sm font-medium leading-6 tabular-nums text-slate-900 [overflow-wrap:anywhere]">{value}</dd></div>
+                ))}
+              </dl>
+            </section>
 
-          {isDecisionHistoryRecord && <section className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 sm:px-6" role="status">
-            <p className="text-[10px] font-semibold uppercase tracking-[.16em] text-slate-500">Decision history · Read only</p>
-            <p className="mt-1 text-sm leading-6 text-slate-700">Business Office decision: <span className="font-semibold">{businessDecisionLabel(selectedBusinessDecision)}</span>. Current request status: <span className="font-semibold">{selectedPR.status.replace(/_/g, ' ')}</span>. This record is read only.</p>
-          </section>}
+            {isDecisionHistoryRecord && <section className="rounded-xl border border-slate-300 bg-slate-100 p-4 text-sm leading-6 text-slate-700" role="status">
+              <h2 className="font-semibold text-slate-950">Decision history · Read only</h2>
+              <p className="mt-2">Business Office decision: <span className="font-semibold">{businessDecisionLabel(selectedBusinessDecision)}</span>.</p>
+              <p>Current request status: <span className="font-semibold">{selectedPR.status.replace(/_/g, ' ')}</span>.</p>
+              <p className="mt-2">This view shows the recorded decision and does not offer evaluation actions.</p>
+            </section>}
 
-          {selectedBusinessDecision && <section className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4">
-            <p className="text-[10px] font-semibold uppercase tracking-[.14em] text-emerald-800">Recorded Business Office decision</p>
-            <p className="mt-2 text-sm font-semibold text-emerald-950">{businessDecisionLabel(selectedBusinessDecision)}</p>
-            {selectedBusinessDecision.remarks && <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-emerald-950">{selectedBusinessDecision.remarks}</p>}
-            <p className="mt-3 break-all border-t border-emerald-200 pt-3 text-[10px] text-emerald-800">{selectedBusinessDecision.actor.email} · {new Date(selectedBusinessDecision.createdAt).toLocaleString()}</p>
-          </section>}
+            {selectedBusinessDecision && <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 sm:p-5">
+              <h2 className="text-base font-semibold text-emerald-950">Recorded Business Office decision</h2>
+              <p className="mt-2 text-sm font-semibold text-emerald-950">{businessDecisionLabel(selectedBusinessDecision)}</p>
+              {selectedBusinessDecision.remarks && <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-emerald-950 [overflow-wrap:anywhere]">{selectedBusinessDecision.remarks}</p>}
+              <p className="mt-3 break-words border-t border-emerald-200 pt-3 text-xs leading-5 text-emerald-900 [overflow-wrap:anywhere]">{selectedBusinessDecision.actor.email} · {new Date(selectedBusinessDecision.createdAt).toLocaleString()}</p>
+            </section>}
 
-          {selectedAdminReturn && <section className="rounded-xl border border-amber-300 bg-amber-50 p-4" role="status"><p className="text-[10px] font-semibold uppercase tracking-[.14em] text-amber-800">Admin returned this evaluation</p><p className="mt-2 text-sm leading-6 text-amber-950">Your previous fiscal review is filled in below. Address the Admin Office feedback, confirm the checks, and resubmit this same request for Admin approval.</p></section>}
+            {selectedAdminReturn && <section className="rounded-xl border border-amber-300 bg-amber-50 p-4" role="status">
+              <h2 className="text-base font-semibold text-amber-950">Admin returned this evaluation</h2>
+              <p className="mt-2 text-sm leading-6 text-amber-950">Your previous fiscal review is filled in below. Address the Admin Office feedback, confirm the checks, and resubmit this same request for Admin approval.</p>
+            </section>}
 
-          {selectedPR.isDirectPoBypass && <section className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4">
-            <div className="flex gap-3"><div className="mt-0.5 text-emerald-700"><Icon path="M13 10V3L4 14h7v7l9-11h-7Z" /></div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-xs font-semibold text-emerald-950">Executive pre-approval on file</h3><span className="rounded-md bg-emerald-100 px-2 py-1 text-[9px] font-semibold uppercase tracking-wider text-emerald-800">Fast-track record</span></div><p className="mt-1 text-xs leading-5 text-emerald-800">Verify the budget ledger allocation and confirm dispatch to the Admin Office.</p>{selectedPR.adminProofFilePath && <a href={selectedPR.adminProofFilePath} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-800 underline underline-offset-2">View executive letter <span aria-hidden>↗</span></a>}</div></div>
-          </section>}
+            {selectedPR.isDirectPoBypass && <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+              <h2 className="text-base font-semibold text-emerald-950">Executive pre-approval on file</h2>
+              <p className="mt-2 text-sm leading-6 text-emerald-900">Verify the budget ledger allocation and confirm dispatch to the Admin Office.</p>
+              {selectedPR.adminProofFilePath && <a href={selectedPR.adminProofFilePath} target="_blank" rel="noreferrer" className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg border border-emerald-300 bg-white px-3 text-sm font-semibold text-emerald-900 hover:bg-emerald-100">
+                View executive letter<ExternalLink className="size-4 shrink-0" aria-hidden="true" /><span className="sr-only">(opens in a new tab)</span>
+              </a>}
+            </section>}
 
-          {adminAuditFeedback && <section className="rounded-xl border border-amber-200 bg-amber-50/70 p-4"><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[.14em] text-amber-700">Prior review feedback</p><p className="mt-2 text-sm leading-6 text-amber-950">{adminAuditFeedback.remarks || 'No specific remark recorded.'}</p></div><span className="shrink-0 rounded-md bg-white px-2 py-1 text-[9px] font-semibold uppercase text-amber-800 ring-1 ring-amber-200">{adminAuditFeedback.actor.role.replace(/_/g, ' ')}</span></div><p className="mt-3 border-t border-amber-200/80 pt-3 text-[10px] text-amber-800">{adminAuditFeedback.actor.email} · {new Date(adminAuditFeedback.createdAt).toLocaleString()}</p></section>}
+            {adminAuditFeedback && <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 sm:p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3"><h2 className="text-base font-semibold text-amber-950">Admin Office feedback</h2><span className="rounded-md border border-amber-200 bg-white px-2 py-1 text-xs text-amber-900">{adminAuditFeedback.actor.role.replace(/_/g, ' ')}</span></div>
+              <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-amber-950 [overflow-wrap:anywhere]">{adminAuditFeedback.remarks || 'No specific remark recorded.'}</p>
+              <p className="mt-3 break-words border-t border-amber-200 pt-3 text-xs leading-5 text-amber-900 [overflow-wrap:anywhere]">{adminAuditFeedback.actor.email} · {new Date(adminAuditFeedback.createdAt).toLocaleString()}</p>
+            </section>}
 
-          <section className="rounded-2xl border border-slate-200 bg-white">
-            <div className="border-b border-slate-200 px-5 py-4 sm:px-6"><p className="text-[10px] font-semibold uppercase tracking-[.16em] text-slate-400">Procurement basis</p><h3 className="mt-1 text-sm font-semibold text-slate-900">Justification and item schedule</h3></div>
-            <div className="px-5 py-5 sm:px-6"><p className="break-words text-xs leading-6 text-slate-700">{selectedPR.justification}</p></div>
-            <div className="divide-y divide-slate-100 border-t border-slate-200 sm:hidden">{itemsList.map((item, idx) => {
-              const unitPrice = item.unitPrice || 0;
-              return <div key={idx} className="space-y-2 px-5 py-4 text-xs">
-                <p className="break-words font-semibold text-slate-900">{item.itemName}</p>
-                <p className="text-slate-600">Quantity: <span className="font-semibold tabular-nums text-slate-800">{item.quantity}</span></p>
-                {hasPrices && <><p className="text-slate-600">Unit price: <span className="font-semibold tabular-nums text-slate-800">{unitPrice > 0 ? `₱${unitPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '—'}</span></p><p className="text-slate-600">Subtotal: <span className="font-semibold tabular-nums text-slate-800">{unitPrice > 0 ? `₱${(unitPrice * item.quantity).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '—'}</span></p></>}
-              </div>;
-            })}{hasPrices && <p className="bg-slate-50 px-5 py-4 text-xs font-semibold text-slate-900">Estimated total: ₱{calculatedGrandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>}</div>
-            <div className="hidden overflow-x-auto border-t border-slate-200 sm:block"><table className="w-full min-w-[560px] text-left text-xs"><thead className="bg-slate-50 text-[10px] font-semibold uppercase tracking-wider text-slate-500"><tr><th className="px-5 py-3 sm:px-6">Item description</th><th className="px-4 py-3 text-right">Qty</th>{hasPrices && <><th className="px-4 py-3 text-right">Unit price</th><th className="px-5 py-3 text-right sm:px-6">Subtotal</th></>}</tr></thead>
-              <tbody className="divide-y divide-slate-100">{itemsList.map((item, idx) => { const unitPrice = item.unitPrice || 0; const subtotal = unitPrice * item.quantity; return <tr key={idx} className="hover:bg-slate-50/70"><td className="px-5 py-3.5 font-medium text-slate-900 sm:px-6">{item.itemName}</td><td className="px-4 py-3.5 text-right font-mono font-semibold tabular-nums text-slate-700">{item.quantity}</td>{hasPrices && <><td className="px-4 py-3.5 text-right font-mono tabular-nums text-slate-500">{unitPrice > 0 ? `₱${unitPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '—'}</td><td className="px-5 py-3.5 text-right font-mono font-medium tabular-nums text-slate-800 sm:px-6">{subtotal > 0 ? `₱${subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '—'}</td></>}</tr>; })}</tbody>
-              {hasPrices && <tfoot><tr className="border-t-2 border-slate-200 bg-slate-50"><td colSpan={3} className="px-4 py-3 text-right text-[10px] font-semibold uppercase tracking-wider text-slate-500">Estimated total</td><td className="px-5 py-3 text-right font-mono text-sm font-bold tabular-nums text-slate-950 sm:px-6">₱{calculatedGrandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td></tr></tfoot>}
-            </table></div>
-          </section>
+            <BusinessSection title="Reason for the request" description="The justification saved by the Requesting Office.">
+              <p className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-700 [overflow-wrap:anywhere]">{selectedPR.justification}</p>
+            </BusinessSection>
+            <BusinessSection title="Requested items" description={`${itemsList.length} line item${itemsList.length === 1 ? '' : 's'} in this request.`}>
+              <ol className="divide-y divide-slate-200">{itemsList.map((item, idx) => {
+                const unitPrice = item.unitPrice || 0;
+                return <li key={idx} className="min-w-0 py-4 first:pt-0 last:pb-0">
+                  <p className="text-xs text-slate-600">Item {idx + 1}</p>
+                  <p className="mt-1 whitespace-pre-wrap break-words text-sm font-medium leading-6 text-slate-900 [overflow-wrap:anywhere]">{item.itemName}</p>
+                  <dl className="mt-3 grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3">
+                    <div><dt className="text-xs text-slate-600">Quantity</dt><dd className="mt-1 text-sm font-semibold tabular-nums text-slate-900">{item.quantity}</dd></div>
+                    {hasPrices && <><div className="min-w-0"><dt className="text-xs text-slate-600">Unit price</dt><dd className="mt-1 break-words text-sm tabular-nums text-slate-900 [overflow-wrap:anywhere]">{unitPrice > 0 ? `₱${unitPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '—'}</dd></div><div className="min-w-0"><dt className="text-xs text-slate-600">Subtotal</dt><dd className="mt-1 break-words text-sm font-semibold tabular-nums text-slate-900 [overflow-wrap:anywhere]">{unitPrice > 0 ? `₱${(unitPrice * item.quantity).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '—'}</dd></div></>}
+                  </dl>
+                </li>;
+              })}</ol>
+              {itemsList.length === 0 && <p className="text-sm text-slate-600">An itemized list is not available for this record.</p>}
+              {hasPrices && <p className="mt-5 break-words border-t border-slate-200 pt-4 text-sm font-semibold tabular-nums text-slate-900 [overflow-wrap:anywhere]">Estimated total: ₱{calculatedGrandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>}
+            </BusinessSection>
 
-          {selectedPR.auditLogs && selectedPR.auditLogs.length > 0 && <details className="group rounded-xl border border-slate-200 bg-white"><summary className="flex cursor-pointer list-none items-center justify-between px-5 py-4 text-xs font-semibold text-slate-800">Workflow history <span className="text-slate-400 transition group-open:rotate-180">⌄</span></summary><div className="border-t border-slate-200 px-5 py-2">{selectedPR.auditLogs.map((log, idx) => <div key={idx} className="grid gap-1 border-b border-slate-100 py-3 last:border-0 sm:grid-cols-[1fr_auto]"><p className="text-xs text-slate-700"><span className="font-semibold text-slate-900">{log.newState.replace(/_/g, ' ')}</span>{log.remarks ? ` — ${log.remarks}` : ''}</p><p className="text-[10px] text-slate-400 sm:text-right">{log.actor.email}<br />{new Date(log.createdAt).toLocaleString()}</p></div>)}</div></details>}
+            {selectedPR.auditLogs && selectedPR.auditLogs.length > 0 && <details className="group min-w-0 rounded-xl border border-slate-200 bg-white">
+              <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 p-4 text-sm font-semibold text-slate-800 sm:px-6">Decision and progress history<ChevronDown className="size-4 shrink-0 transition group-open:rotate-180" aria-hidden="true" /></summary>
+              <ol className="space-y-4 border-t border-slate-200 p-4 sm:p-6">{selectedPR.auditLogs.map((log, idx) => <li key={log.id || idx} className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <p className="break-words text-sm font-semibold text-slate-900">{log.newState.replace(/_/g, ' ')}</p>
+                {log.remarks && <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700 [overflow-wrap:anywhere]">{log.remarks}</p>}
+                <p className="mt-3 break-words text-xs leading-5 text-slate-600 [overflow-wrap:anywhere]">{log.actor.role.replace(/_/g, ' ')} · {log.actor.email}<br />{new Date(log.createdAt).toLocaleString()}</p>
+              </li>)}</ol>
+            </details>}
 
-          {!isDecisionHistoryRecord && <section className="rounded-2xl border border-slate-200 bg-slate-50/60 p-5 sm:p-6"><div className="mb-4 flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[.16em] text-slate-400">Required controls</p><h3 className="mt-1 text-sm font-semibold text-slate-900">Fiscal verification</h3></div><span className={`rounded-md px-2 py-1 text-[10px] font-semibold ${checksComplete === 2 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'}`}>{checksComplete} of 2 verified</span></div><div className="space-y-2"><CheckItem id="gate-necessity" checked={necessityVerified} onChange={setNecessityVerified} label="Purchase necessity verified" description="Item specifications and departmental requirements have been reviewed." /><CheckItem id="gate-budget" checked={budgetAvailable} onChange={setBudgetAvailable} label="Budget availability confirmed" description="Funds are available under the department allocation code." /></div></section>}
+            {!isDecisionHistoryRecord && <BusinessSection title="Fiscal verification" description="Confirm both checks before recording any evaluation outcome.">
+              <p className={`mb-4 text-sm font-medium ${checksComplete === 2 ? 'text-emerald-800' : 'text-slate-700'}`}>{checksComplete} of 2 verified</p>
+              <div className="space-y-3"><CheckItem id="gate-necessity" checked={necessityVerified} onChange={setNecessityVerified} label="Purchase necessity verified" description="Item specifications and departmental requirements have been reviewed." /><CheckItem id="gate-budget" checked={budgetAvailable} onChange={setBudgetAvailable} label="Budget availability confirmed" description="Funds are available under the department allocation code." /></div>
+            </BusinessSection>}
 
-          {!isDecisionHistoryRecord && <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6"><div className="mb-4"><p className="text-[10px] font-semibold uppercase tracking-[.16em] text-slate-400">Disposition</p><h3 className="mt-1 text-sm font-semibold text-slate-900">Business Office decision</h3><p className="mt-1 text-xs text-slate-500">{selectedAdminReturn ? 'Revise your fiscal evaluation before sending it back to Admin.' : 'Choose the outcome that should be recorded for this requisition.'}</p></div>{selectedAdminReturn ? <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-900">Resubmit to Admin Office</p> : <DecisionButtonGroup value={evaluationAction} onChange={setEvaluationAction} approveLabel="Approve" returnLabel="Return for correction" declineLabel="Decline" />}{fieldErrors?.action?._errors && <FieldError>{fieldErrors.action._errors[0]}</FieldError>}
-            {selectedAdminReturn && <div className="mt-5 border-t border-slate-200 pt-5"><FieldLabel>Revised fiscal evaluation and response to Admin</FieldLabel><textarea required minLength={5} rows={4} className={inputClass(!!fieldErrors?.remarks)} value={remarks} onChange={(e) => setRemarks(e.target.value)} />{fieldErrors?.remarks?._errors && <FieldError>{fieldErrors.remarks._errors[0]}</FieldError>}</div>}
-            {(evaluationAction === 'RETURN_FOR_CORRECTION' || evaluationAction === 'DECLINE') && <div className="mt-5 border-t border-slate-200 pt-5"><FieldLabel>{evaluationAction === 'RETURN_FOR_CORRECTION' ? 'Corrections required' : 'Reason for declining'}</FieldLabel><textarea required rows={4} className={inputClass(!!fieldErrors?.remarks)} placeholder={evaluationAction === 'RETURN_FOR_CORRECTION' ? 'Specify the corrections required…' : 'Document the reason for declining this request…'} value={remarks} onChange={(e) => setRemarks(e.target.value)} />{fieldErrors?.remarks?._errors && <FieldError>{fieldErrors.remarks._errors[0]}</FieldError>}</div>}
-          </section>}
+            {!isDecisionHistoryRecord && <BusinessSection title="Business Office decision" description={selectedAdminReturn ? 'Revise your fiscal evaluation before sending it back to Admin.' : 'Choose the outcome to record for this request.'}>
+              {selectedAdminReturn ? <p className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-900">Resubmit to Admin Office</p> : <DecisionButtonGroup value={evaluationAction} onChange={setEvaluationAction} approveLabel="Approve" returnLabel="Return for correction" declineLabel="Decline" />}
+              {fieldErrors?.action?._errors && <FieldError>{fieldErrors.action._errors[0]}</FieldError>}
+              {selectedAdminReturn && <div className="mt-5 border-t border-slate-200 pt-5">
+                <FieldLabel htmlFor="business-remarks">Revised fiscal evaluation and response to Admin</FieldLabel>
+                <textarea id="business-remarks" required minLength={5} rows={4} className={inputClass(!!fieldErrors?.remarks)} value={remarks} onChange={(e) => setRemarks(e.target.value)} aria-invalid={Boolean(fieldErrors?.remarks?._errors?.length)} aria-describedby={`business-remarks-help${fieldErrors?.remarks?._errors?.length ? ' business-remarks-error' : ''}`} />
+                <p id="business-remarks-help" className="mt-2 text-xs leading-5 text-slate-600">At least 5 characters. Explain the revised review and how it addresses Admin feedback.</p>
+                {fieldErrors?.remarks?._errors && <FieldError id="business-remarks-error">{fieldErrors.remarks._errors[0]}</FieldError>}
+              </div>}
+              {(evaluationAction === 'RETURN_FOR_CORRECTION' || evaluationAction === 'DECLINE') && <div className="mt-5 border-t border-slate-200 pt-5">
+                <FieldLabel htmlFor="business-remarks">{evaluationAction === 'RETURN_FOR_CORRECTION' ? 'Corrections required' : 'Reason for declining'}</FieldLabel>
+                <textarea id="business-remarks" required rows={4} className={inputClass(!!fieldErrors?.remarks)} placeholder={evaluationAction === 'RETURN_FOR_CORRECTION' ? 'Specify the corrections required…' : 'Document the reason for declining this request…'} value={remarks} onChange={(e) => setRemarks(e.target.value)} aria-invalid={Boolean(fieldErrors?.remarks?._errors?.length)} aria-describedby={`business-remarks-help${fieldErrors?.remarks?._errors?.length ? ' business-remarks-error' : ''}`} />
+                <p id="business-remarks-help" className="mt-2 text-xs leading-5 text-slate-600">At least 5 characters. Give the Requesting Office a clear explanation.</p>
+                {fieldErrors?.remarks?._errors && <FieldError id="business-remarks-error">{fieldErrors.remarks._errors[0]}</FieldError>}
+              </div>}
+            </BusinessSection>}
 
-          {!isDecisionHistoryRecord && <><input type="hidden" required readOnly value={targetPrId} />{fieldErrors?.prId?._errors && <FieldError>{fieldErrors.prId._errors[0]}</FieldError>}
-          <section className="flex flex-col gap-4 rounded-2xl bg-slate-950 px-5 py-5 text-white sm:flex-row sm:items-center sm:justify-between sm:px-6"><div><p className="text-[10px] font-semibold uppercase tracking-[.16em] text-slate-400">Final action</p><p className="mt-1 text-sm font-semibold">{selectedAdminReturn ? 'Resubmit revised evaluation' : 'Record fiscal evaluation'}</p><p className="mt-1 text-xs text-slate-400">{selectedAdminReturn ? 'The existing request returns to Admin for approval.' : 'This updates the requisition to the selected workflow state.'}</p></div><ActionButton type="submit" disabled={isPending}>{isPending ? 'Saving…' : selectedAdminReturn ? 'Resubmit to Admin' : 'Submit evaluation'}</ActionButton></section></>}
-        </>}
-      </form>
-    </ReviewWorkspace>
-    {showOperationStateModal && <OperationStateModal onReviewLatest={reviewLatestDecisionHistory} />}
-  </PageShell>;
+            {!isDecisionHistoryRecord && <>
+              <input type="hidden" required readOnly value={targetPrId} />
+              {fieldErrors?.prId?._errors && <FieldError>{fieldErrors.prId._errors[0]}</FieldError>}
+              <BusinessFinalAction title={selectedAdminReturn ? 'Resubmit revised evaluation' : 'Record fiscal evaluation'} description={selectedAdminReturn ? 'The existing request returns to Admin for approval.' : evaluationAction === 'APPROVE' ? 'Approval sends this request to the Admin Office for review.' : evaluationAction === 'RETURN_FOR_CORRECTION' ? 'The Requesting Office will receive your feedback and can correct this same request.' : evaluationAction === 'DECLINE' ? 'This request will be declined. Your reason becomes part of the decision history.' : 'Select an outcome and confirm the verification checks above.'}>
+                <ActionButton type="submit" disabled={isPending}>{isPending ? 'Saving…' : selectedAdminReturn ? 'Resubmit to Admin' : 'Submit evaluation'}</ActionButton>
+              </BusinessFinalAction>
+            </>}
+          </>}
+        </form>
+      </ReviewWorkspace>
+      {showOperationStateModal && <OperationStateModal onReviewLatest={reviewLatestDecisionHistory} />}
+    </PageShell>
+  );
 }
