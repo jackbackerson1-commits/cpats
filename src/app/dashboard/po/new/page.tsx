@@ -19,8 +19,9 @@ import {
   ReviewWorkspace,
   ActionButton,
   QueueTask,
-  deriveItemSummaryTitle,
-} from '@/components/ui/WorkflowUI';
+} from '@/components/purchasing/PurchasingUI';
+import { deriveItemSummaryTitle } from '@/components/ui/WorkflowUI';
+import { normalizeReportItems } from '@/shared/monthly-report';
 
 interface ZodSubErrors {
   _errors?: string[];
@@ -34,7 +35,7 @@ interface ZodFormErrors {
 interface ApprovedPRQueueNode {
   id: string;
   justification: string;
-  itemsPayload?: any;
+  itemsPayload?: unknown;
   status: PRStatus;
   createdAt: string;
   department: { code: string; name: string };
@@ -74,19 +75,6 @@ export default function NewPurchaseOrderPage() {
   const [transactionSuccess, setTransactionSuccess] = useState<string | null>(null);
   const notificationTargetHandled = useRef(false);
 
-  useEffect(() => {
-    fetch('/api/auth/me')
-      .then((res) => res.json())
-      .then((res) => {
-        if (res.success && res.data) {
-          setActiveUser(res.data);
-          syncPurchasingQueue(res.data.role);
-        }
-      })
-      .catch(() => setRuntimeError('Failed to load session context. Please refresh.'))
-      .finally(() => setUserLoading(false));
-  }, []);
-
   const syncPurchasingQueue = async (userRole: Role) => {
     try {
       const response = await fetch('/api/pr/queue', {
@@ -116,6 +104,19 @@ export default function NewPurchaseOrderPage() {
       setQueueLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((res) => res.json())
+      .then((res) => {
+        if (res.success && res.data) {
+          setActiveUser(res.data);
+          syncPurchasingQueue(res.data.role);
+        }
+      })
+      .catch(() => setRuntimeError('Failed to load session context. Please refresh.'))
+      .finally(() => setUserLoading(false));
+  }, []);
 
   const handleGeneratePoNumber = () => {
     const year = new Date().getFullYear();
@@ -174,8 +175,8 @@ export default function NewPurchaseOrderPage() {
         
         await syncPurchasingQueue(activeUser.role);
         router.refresh();
-      } catch (err: any) {
-        setRuntimeError(err.message || 'Something went wrong. Please try again.');
+      } catch (err: unknown) {
+        setRuntimeError((err as Error).message || 'Something went wrong. Please try again.');
       }
     });
   };
@@ -207,12 +208,15 @@ export default function NewPurchaseOrderPage() {
     justificationPreview: task.justification,
   }));
 
+  const selectedRequest = purchasingQueue.find((task) => task.id === purchaseRequestId);
+  const selectedItems = normalizeReportItems(selectedRequest?.itemsPayload);
+
   return (
     <PageShell>
       <StageHeader
         eyebrow="Step 4-A of 6 · PO Preparation & Tag Generation"
-        title="Generate Purchase Order & Asset QR Tag"
-        description="Bind approved requisitions to official PO numbers, generate cryptographic QR asset stickers, and confirm hard-copy document custody."
+        title="Prepare purchase order"
+        description="Select an approved request, assign its PO number, and confirm document custody before sending it to Business Office for financial clearance."
         meta={{ label: 'Signed in as', value: activeUser.email }}
       />
 
@@ -220,30 +224,30 @@ export default function NewPurchaseOrderPage() {
       {transactionSuccess && <SuccessBanner>{transactionSuccess}</SuccessBanner>}
 
       {createdPoDetails && (
-        <div className="bg-[#022C22] text-white border border-emerald-800 rounded-xl p-6 my-4 shadow-xl">
+        <div className="min-w-0 rounded-xl border border-emerald-200 bg-white p-5 text-slate-900 shadow-xs sm:p-6">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
-            <div className="space-y-2 text-center sm:text-left">
+            <div className="w-full min-w-0 space-y-2 text-center sm:flex-1 sm:text-left">
               <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-                <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-emerald-300 bg-emerald-900/90 px-2.5 py-1 rounded border border-emerald-700">
+                <span className="text-xs font-medium text-emerald-900 bg-emerald-50 px-2.5 py-1 rounded border border-emerald-200">
                   Official Asset Sticker Tag
                 </span>
-                <span className="text-[10px] font-mono font-bold uppercase text-emerald-200 bg-emerald-900/80 px-2.5 py-1 rounded border border-emerald-700">
+                <span className="text-xs font-medium text-slate-700 bg-slate-50 px-2.5 py-1 rounded border border-slate-200">
                   Dept: {createdPoDetails.departmentCode}
                 </span>
               </div>
-              <h3 className="text-3xl font-black tracking-tight text-white">{createdPoDetails.poNumber}</h3>
-              <p className="text-xs text-emerald-200 font-mono break-all max-w-md">
-                Cryptographic Token: <span className="text-emerald-300 font-bold">{createdPoDetails.qrCodeToken}</span>
+              <h3 className="mt-3 break-words text-2xl font-semibold tracking-tight text-slate-950 [overflow-wrap:anywhere]">{createdPoDetails.poNumber}</h3>
+              <p className="text-xs text-slate-600 font-mono break-all max-w-md">
+                Cryptographic Token: <span className="text-slate-800 font-medium">{createdPoDetails.qrCodeToken}</span>
               </p>
               <div className="pt-2">
                 <button
                   type="button"
                   onClick={() => window.print()}
-                className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs uppercase px-4 py-2 rounded-lg transition cursor-pointer active:scale-95 shadow-sm inline-flex items-center gap-2"
+                className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-emerald-700"
               >
                   <span className="inline-flex items-center gap-1.5">
                     <PrintIcon className="size-4 shrink-0" />
-                    <span>Print Official Asset Tag Sticker</span>
+                    <span>Print asset tag</span>
                   </span>
                 </button>
               </div>
@@ -257,40 +261,60 @@ export default function NewPurchaseOrderPage() {
       )}
 
       <ReviewWorkspace
-        queueTitle="Approved Requests Awaiting PO"
+        queueTitle="Approved request queue"
         tasks={queueTasks}
         loading={queueLoading}
         emptyMessage="No approved requests are currently waiting for PO generation."
         selectedId={purchaseRequestId}
         onSelect={setPurchaseRequestId}
+        selectionLabel="Preparing purchase order"
+        selectedTaskLabel="Purchase order preparation"
       >
-        <form onSubmit={handlePurchaseOrderGeneration} className="space-y-6">
+        <form onSubmit={handlePurchaseOrderGeneration} className="space-y-6 rounded-xl border border-slate-200 bg-white p-4 shadow-xs sm:p-6">
+          <section aria-label="Selected request overview" className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 p-4 sm:p-5">
+            <p className="text-xs font-medium text-emerald-800">{purchaseRequestId ? 'Approved request' : 'Start with an approved request'}</p>
+            <h2 className="mt-2 break-words text-lg font-semibold leading-7 text-slate-950 [overflow-wrap:anywhere]">{queueTasks.find((task) => task.id === purchaseRequestId)?.title || 'Choose a request from the queue'}</h2>
+            {selectedRequest && <>
+              <p className="mt-2 break-words text-sm leading-6 text-slate-600 [overflow-wrap:anywhere]">{selectedRequest.department.name}</p>
+              <div className="mt-4 border-t border-slate-200 pt-4"><h3 className="text-sm font-medium text-slate-800">Reason for the request</h3><p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-slate-600 [overflow-wrap:anywhere]">{selectedRequest.justification}</p></div>
+              {selectedItems.length > 0 && <details className="mt-4 border-t border-slate-200 pt-2">
+                <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold text-slate-800 focus-visible:outline-2 focus-visible:outline-emerald-700">Approved items · {selectedItems.length} line item{selectedItems.length === 1 ? '' : 's'}</summary>
+                <ul className="mt-2 space-y-2">{selectedItems.map((item, index) => <li key={index} className="flex min-w-0 flex-col gap-1 rounded-lg border border-slate-200 bg-white p-3 text-sm sm:flex-row sm:justify-between">
+                  <span className="min-w-0 break-words leading-6 text-slate-800 [overflow-wrap:anywhere]">{item.itemName}</span><span className="shrink-0 font-medium text-slate-700">Quantity: {item.quantity}</span>
+                </li>)}</ul>
+              </details>}
+            </>}
+            {!purchaseRequestId && <p className="mt-2 text-sm leading-6 text-slate-600">The saved request reference and details will appear here. PO preparation sends the request to Business Office for payment clearance.</p>}
+          </section>
           <div>
-            <FieldLabel>Requisition Reference Code</FieldLabel>
+            <FieldLabel htmlFor="po-request-reference">Request reference</FieldLabel>
             <input
               type="text"
               required
               readOnly
+              id="po-request-reference"
+              aria-invalid={!!validationErrors?.purchaseRequestId}
+              aria-describedby={validationErrors?.purchaseRequestId ? "po-request-error" : undefined}
               className={`${inputClass(!!validationErrors?.purchaseRequestId)} font-mono bg-slate-100 text-slate-600 cursor-not-allowed`}
               placeholder="Select an approved request from the list..."
               value={purchaseRequestId}
             />
             {validationErrors?.purchaseRequestId?._errors && (
-              <FieldError>{validationErrors.purchaseRequestId._errors[0]}</FieldError>
+              <FieldError id="po-request-error">{validationErrors.purchaseRequestId._errors[0]}</FieldError>
             )}
           </div>
 
           <div>
-            <div className="flex justify-between items-center mb-1.5">
-              <FieldLabel>Purchase Order Number</FieldLabel>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <FieldLabel htmlFor="po-number">Purchase order number <span className="text-rose-700">*</span></FieldLabel>
               <button
                 type="button"
                 onClick={handleGeneratePoNumber}
-                className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 hover:underline cursor-pointer"
+                className="inline-flex min-h-11 items-center rounded-lg border border-slate-300 px-3 text-sm font-semibold text-emerald-800 hover:bg-emerald-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
               >
                 <span className="inline-flex items-center gap-1.5">
                   <SparkIcon className="size-3.5 shrink-0" />
-                  <span>Auto-Format PO Number</span>
+                  <span>Suggest PO number</span>
                 </span>
               </button>
             </div>
@@ -298,18 +322,21 @@ export default function NewPurchaseOrderPage() {
               type="text"
               required
               className={`${inputClass(!!validationErrors?.poNumber)} font-mono`}
+              id="po-number"
+              aria-invalid={!!validationErrors?.poNumber}
+              aria-describedby={validationErrors?.poNumber ? "po-number-error" : undefined}
               placeholder="e.g., PO-2026-8891"
               value={poNumber}
               onChange={(e) => setPoNumber(e.target.value)}
             />
             {validationErrors?.poNumber?._errors && (
-              <FieldError>{validationErrors.poNumber._errors[0]}</FieldError>
+              <FieldError id="po-number-error">{validationErrors.poNumber._errors[0]}</FieldError>
             )}
           </div>
 
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wide block mb-2">
-              Mandatory Document Custody Verification
+            <span className="mb-3 block text-sm font-semibold text-slate-800">
+              Document custody confirmation
             </span>
             <CheckItem
               id="custody-chk"
@@ -320,9 +347,10 @@ export default function NewPurchaseOrderPage() {
             />
           </div>
 
-          <div className="border-t border-slate-100 pt-4 flex justify-end">
-            <ActionButton type="submit" disabled={isPending}>
-              {isPending ? 'Preparing PO & Tag...' : 'Generate PO & Asset Tag'}
+          <div className="space-y-4 border-t border-slate-200 pt-5">
+            <p className="text-sm leading-6 text-slate-600">After preparation, Business Office records the payment method and financial clearance.</p>
+            <ActionButton className="w-full sm:w-auto" type="submit" disabled={isPending}>
+              {isPending ? 'Preparing PO & Tag...' : 'Prepare PO & asset tag'}
             </ActionButton>
           </div>
         </form>
