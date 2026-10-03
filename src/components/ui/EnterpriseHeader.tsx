@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Role } from '@prisma/client';
 import NotificationBell from '@/components/ui/NotificationBell';
+import { BarChart3, ClipboardCheck, FilePlus2, ListChecks, LogOut, PackageCheck, ShieldCheck, Wallet } from 'lucide-react';
 
 interface EnterpriseHeaderProps {
   activeRole?: Role;
@@ -96,6 +97,144 @@ export default function EnterpriseHeader({ activeRole: propRole, departmentCode:
       window.location.assign(step.href);
     }
   };
+
+  if (displayRole === Role.Requesting_Office) {
+    return (
+      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="flex min-h-16 items-center justify-between gap-3 py-2">
+            <Link href="/dashboard" className="inline-flex min-w-0 items-center gap-2.5" aria-label="CPATS Requesting Office home">
+              <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-emerald-800 text-xs font-bold text-white">DMC</span>
+              <span className="min-w-0"><span className="block text-sm font-semibold text-slate-950">CPATS</span><span className="block text-xs text-slate-600">{displayCode} · Requesting Office</span></span>
+            </Link>
+            <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+              <NotificationBell />
+              <button type="button" onClick={handleLogout} disabled={signingOut} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 disabled:opacity-50">
+                <LogOut className="size-4 shrink-0" aria-hidden="true" /><span>{signingOut ? 'Signing out…' : 'Sign out'}</span>
+              </button>
+            </div>
+          </div>
+          <nav className="flex gap-5" aria-label="Requesting Office navigation">
+            {authorizedSteps.map((step) => {
+              const isActive = pathname === step.href;
+              const Icon = step.href === '/dashboard/pr/new' ? FilePlus2 : ListChecks;
+              return <Link key={step.href} href={step.href} onClick={(event) => handleWorkflowNavigation(event, step)} aria-current={isActive ? 'page' : undefined} className={`inline-flex min-h-12 items-center gap-2 border-b-2 py-3 text-sm font-semibold transition ${isActive ? 'border-emerald-800 text-emerald-900' : 'border-transparent text-slate-600 hover:border-slate-300 hover:text-slate-900'}`}><Icon className="size-4 shrink-0" aria-hidden="true" />{step.name}</Link>;
+            })}
+          </nav>
+        </div>
+      </header>
+    );
+  }
+
+  if (displayRole === Role.Business_Office) {
+    return (
+      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="flex min-h-16 items-center justify-between gap-3 py-2">
+            <Link href="/dashboard" className="inline-flex min-w-0 items-center gap-2.5" aria-label="CPATS Business Office home">
+              <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-emerald-800 text-xs font-bold text-white">DMC</span>
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-slate-950">CPATS</span>
+                <span className="block break-words text-xs text-slate-600">{displayCode} · Business Office</span>
+              </span>
+            </Link>
+            <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+              <NotificationBell />
+              <button type="button" onClick={handleLogout} disabled={signingOut} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 disabled:opacity-50">
+                <LogOut className="size-4 shrink-0" aria-hidden="true" />
+                <span>{signingOut ? 'Signing out…' : 'Sign out'}</span>
+              </button>
+            </div>
+          </div>
+          <nav className="flex flex-wrap gap-x-5" aria-label="Business Office navigation">
+            {authorizedSteps.map((step) => {
+              const isActive = pathname === step.href;
+              const isEvaluation = step.href === '/dashboard/pr/evaluate-business';
+              const Icon = isEvaluation ? ClipboardCheck : Wallet;
+              return (
+                <Link key={step.href} href={step.href} onClick={(event) => handleWorkflowNavigation(event, step)} aria-current={isActive ? 'page' : undefined} className={`inline-flex min-h-12 items-center gap-2 border-b-2 py-3 text-sm font-semibold transition ${isActive ? 'border-emerald-800 text-emerald-900' : 'border-transparent text-slate-600 hover:border-slate-300 hover:text-slate-900'}`}>
+                  <Icon className="size-4 shrink-0" aria-hidden="true" />
+                  {isEvaluation ? 'Fiscal Evaluation' : 'Financial Clearance'}
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
+      </header>
+    );
+  }
+
+  if (displayRole === Role.Admin_Office) {
+    return (
+      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white">
+        <div className="mx-auto max-w-[1920px] px-4 sm:px-6 lg:px-8">
+          <div className="flex min-h-16 items-center justify-between gap-3 py-2">
+            <Link href="/dashboard" className="inline-flex min-w-0 items-center gap-2.5" aria-label="CPATS Admin Office home">
+              <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-emerald-800 text-xs font-bold text-white">DMC</span>
+              <span className="min-w-0"><span className="block text-sm font-semibold text-slate-950">CPATS</span><span className="block break-words text-xs text-slate-600">{displayCode} · Admin Office</span></span>
+            </Link>
+            <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+              <NotificationBell />
+              <button type="button" onClick={handleLogout} disabled={signingOut} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 disabled:opacity-50">
+                <LogOut className="size-4 shrink-0" aria-hidden="true" /><span>{signingOut ? 'Signing out…' : 'Sign out'}</span>
+              </button>
+            </div>
+          </div>
+          <nav className="flex flex-wrap gap-x-5" aria-label="Admin Office navigation">
+            {authorizedSteps.map((step) => <Link key={step.href} href={step.href} onClick={(event) => handleWorkflowNavigation(event, step)} aria-current={pathname === step.href ? 'page' : undefined} className={`inline-flex min-h-12 items-center gap-2 border-b-2 py-3 text-sm font-semibold transition ${pathname === step.href ? 'border-emerald-800 text-emerald-900' : 'border-transparent text-slate-600 hover:border-slate-300 hover:text-slate-900'}`}><ShieldCheck className="size-4 shrink-0" aria-hidden="true" />Executive Review</Link>)}
+          </nav>
+        </div>
+      </header>
+    );
+  }
+
+  if (displayRole === Role.Purchasing_Office) {
+    return (
+      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white">
+        <div className="mx-auto max-w-[1920px] px-4 sm:px-6 lg:px-8">
+          <div className="flex min-h-16 items-center justify-between gap-3 py-2">
+            <Link href="/dashboard" className="inline-flex min-w-0 items-center gap-2.5" aria-label="CPATS Purchasing Office home">
+              <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-emerald-800 text-xs font-bold text-white">DMC</span>
+              <span className="min-w-0"><span className="block text-sm font-semibold text-slate-950">CPATS</span><span className="block break-words text-xs text-slate-600">{displayCode} · Purchasing Office</span></span>
+            </Link>
+            <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+              <NotificationBell />
+              <button type="button" onClick={handleLogout} disabled={signingOut} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 disabled:opacity-50">
+                <LogOut className="size-4 shrink-0" aria-hidden="true" /><span>{signingOut ? 'Signing out…' : 'Sign out'}</span>
+              </button>
+            </div>
+          </div>
+          <nav className="flex flex-wrap gap-x-5" aria-label="Purchasing Office navigation">
+            {authorizedSteps.map((step) => <Link key={step.href} href={step.href} onClick={(event) => handleWorkflowNavigation(event, step)} aria-current={pathname === step.href ? 'page' : undefined} className={`inline-flex min-h-12 items-center gap-2 border-b-2 py-3 text-sm font-semibold transition ${pathname === step.href ? 'border-emerald-800 text-emerald-900' : 'border-transparent text-slate-600 hover:border-slate-300 hover:text-slate-900'}`}>{step.href === '/dashboard/po/new' ? <FilePlus2 className="size-4 shrink-0" aria-hidden="true" /> : step.href === '/dashboard/po/track' ? <PackageCheck className="size-4 shrink-0" aria-hidden="true" /> : <BarChart3 className="size-4 shrink-0" aria-hidden="true" />}{step.href === '/dashboard/po/new' ? 'Prepare PO' : step.href === '/dashboard/po/track' ? 'Track Orders' : 'Monthly Reports'}</Link>)}
+          </nav>
+        </div>
+      </header>
+    );
+  }
+
+  if (displayRole === Role.Receiving_Custodian) {
+    return (
+      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white">
+        <div className="mx-auto max-w-[1920px] px-4 sm:px-6 lg:px-8">
+          <div className="flex min-h-16 items-center justify-between gap-3 py-2">
+            <Link href="/dashboard" className="inline-flex min-w-0 items-center gap-2.5" aria-label="CPATS Receiving Custodian home">
+              <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-emerald-800 text-xs font-bold text-white">DMC</span>
+              <span className="min-w-0"><span className="block text-sm font-semibold text-slate-950">CPATS</span><span className="block break-words text-xs text-slate-600">{displayCode} · Receiving Custodian</span></span>
+            </Link>
+            <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+              <NotificationBell />
+              <button type="button" onClick={handleLogout} disabled={signingOut} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 disabled:opacity-50">
+                <LogOut className="size-4 shrink-0" aria-hidden="true" /><span>{signingOut ? 'Signing out…' : 'Sign out'}</span>
+              </button>
+            </div>
+          </div>
+          <nav className="flex flex-wrap gap-x-5" aria-label="Receiving Custodian navigation">
+            {authorizedSteps.map((step) => <Link key={step.href} href={step.href} onClick={(event) => handleWorkflowNavigation(event, step)} aria-current={pathname === step.href ? 'page' : undefined} className={`inline-flex min-h-12 items-center gap-2 border-b-2 py-3 text-sm font-semibold transition ${pathname === step.href ? 'border-emerald-800 text-emerald-900' : 'border-transparent text-slate-600 hover:border-slate-300 hover:text-slate-900'}`}><PackageCheck className="size-4 shrink-0" aria-hidden="true" />Receive Delivery</Link>)}
+          </nav>
+        </div>
+      </header>
+    );
+  }
 
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-slate-200 shadow-2xs">
