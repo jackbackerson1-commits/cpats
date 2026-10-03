@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { PaymentType, PRStatus, Role } from '@prisma/client';
-import { ErrorBanner, PageShell, StageHeader } from '@/components/ui/WorkflowUI';
+import { ErrorBanner, PageShell, StageHeader } from '@/components/purchasing/PurchasingUI';
 
 interface ItemNode {
   itemName: string;
@@ -159,7 +159,7 @@ function PurchasingProgress({ status }: { status: PRStatus }) {
           const current = !closed && index === activeIndex;
           return (
             <li key={stage.label} aria-current={current ? 'step' : undefined} className="flex min-w-0 flex-col items-center text-center">
-              <span className={`z-10 flex size-7 items-center justify-center rounded-full border-2 text-[10px] font-bold ${
+              <span className={`z-10 flex size-7 items-center justify-center rounded-full border-2 text-xs font-semibold ${
                 complete
                   ? 'border-emerald-700 bg-emerald-700 text-white'
                   : current
@@ -168,10 +168,10 @@ function PurchasingProgress({ status }: { status: PRStatus }) {
               }`}>
                 {complete ? <CheckIcon /> : index + 1}
               </span>
-              <span className={`mt-2 text-[10px] font-bold sm:text-[11px] ${complete || current ? 'text-slate-800' : 'text-slate-400'}`}>
+              <span className={`mt-2 text-xs font-semibold sm:text-sm ${complete || current ? 'text-slate-800' : 'text-slate-600'}`}>
                 {stage.label}
               </span>
-              <span className="mt-0.5 hidden text-[9px] leading-3 text-slate-400 sm:block">{stage.description}</span>
+              <span className="mt-0.5 hidden text-xs leading-5 text-slate-600 sm:block">{stage.description}</span>
               <span className="sr-only">{complete ? 'Completed' : current ? 'Current stage' : 'Upcoming'}</span>
             </li>
           );
@@ -185,7 +185,7 @@ function TrackingSkeleton() {
   return (
     <div className="space-y-3" aria-label="Loading tracking records" role="status">
       {[0, 1, 2].map((key) => (
-        <div key={key} className="animate-pulse rounded-2xl border border-slate-200 bg-white p-5">
+        <div key={key} className="animate-pulse rounded-xl border border-slate-200 bg-white p-5">
           <div className="h-4 w-48 rounded bg-slate-100" />
           <div className="mt-3 h-3 w-72 max-w-full rounded bg-slate-100" />
           <div className="mt-6 h-14 rounded bg-slate-50" />
@@ -258,29 +258,29 @@ export default function PurchasingTrackingPage() {
     <PageShell>
       <StageHeader
         eyebrow="Purchasing Office · Read-only transaction visibility"
-        title="Track Purchasing Requests"
+        title="Track purchase orders"
         description="Follow every request that has reached Purchasing—from official PO preparation through finance clearance, purchase readiness, and final receipt."
         meta={{ label: 'Visible scope', value: `${counts.total} purchasing record${counts.total === 1 ? '' : 's'}` }}
       />
 
-      {error && <div className="mb-4"><ErrorBanner>{error}</ErrorBanner></div>}
+      {error && <div className=""><ErrorBanner>{error}</ErrorBanner></div>}
 
-      <section aria-label="Tracking summary" className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <section aria-label="Tracking summary" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
           { label: 'Total Records', value: counts.total, tone: 'text-slate-900' },
-          { label: 'In Progress', value: counts.active, tone: 'text-indigo-700' },
+          { label: 'In Progress', value: counts.active, tone: 'text-emerald-800' },
           { label: 'At Finance', value: counts.finance, tone: 'text-blue-700' },
           { label: 'Received', value: counts.received, tone: 'text-emerald-700' },
         ].map((metric) => (
-          <div key={metric.label} className="rounded-xl border border-slate-200 bg-white px-4 py-3.5 shadow-sm">
-            <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-slate-400">{metric.label}</p>
-            <p className={`mt-1 font-mono text-xl font-bold ${metric.tone}`}>{metric.value}</p>
+          <div key={metric.label} className="rounded-xl border border-slate-200 bg-white px-4 py-3.5 shadow-xs">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">{metric.label}</p>
+            <p className={`mt-1 font-mono text-xl font-semibold ${metric.tone}`}>{metric.value}</p>
           </div>
         ))}
       </section>
 
-      <section className="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm" aria-label="Tracking filters">
-        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_240px_auto]">
+      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs" aria-label="Tracking filters">
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_260px_auto]">
           <div className="relative">
             <input
               type="search"
@@ -288,15 +288,15 @@ export default function PurchasingTrackingPage() {
               onChange={(event) => setSearchQuery(event.target.value)}
               placeholder="Search PO, request ID, department, or item…"
               aria-label="Search purchasing tracking records"
-              className="min-h-11 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-3 text-xs text-slate-800 outline-none transition focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10 [&+svg]:pointer-events-none"
+              className="min-h-11 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-3 text-sm text-slate-800 outline-none transition focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10 [&+svg]:pointer-events-none"
             />
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><SearchIcon /></span>
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-600"><SearchIcon /></span>
           </div>
           <select
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value)}
             aria-label="Filter by purchasing stage"
-            className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 outline-none transition focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10"
+            className="min-w-0 min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10"
           >
             {STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
@@ -304,7 +304,7 @@ export default function PurchasingTrackingPage() {
             type="button"
             onClick={refresh}
             disabled={loading}
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-xs font-bold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <RefreshIcon />
             {loading ? 'Refreshing…' : 'Refresh'}
@@ -315,20 +315,20 @@ export default function PurchasingTrackingPage() {
       {loading && records.length === 0 ? (
         <TrackingSkeleton />
       ) : error && records.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-rose-200 bg-white px-6 py-16 text-center">
-          <p className="text-sm font-bold text-slate-700">Tracking records are temporarily unavailable.</p>
-          <p className="mx-auto mt-1 max-w-md text-xs leading-5 text-slate-400">Use Refresh to try loading the authoritative register again.</p>
+        <div className="rounded-xl border border-dashed border-rose-200 bg-white px-6 py-16 text-center">
+          <p className="text-sm font-semibold text-slate-700">Tracking records are temporarily unavailable.</p>
+          <p className="mx-auto mt-1 max-w-md text-sm leading-6 text-slate-600">Use Refresh to try loading the authoritative register again.</p>
         </div>
       ) : filteredRecords.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center">
-          <p className="text-sm font-bold text-slate-700">{records.length === 0 ? 'No requests have reached Purchasing yet.' : 'No records match these filters.'}</p>
-          <p className="mx-auto mt-1 max-w-md text-xs leading-5 text-slate-400">
+        <div className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center">
+          <p className="text-sm font-semibold text-slate-700">{records.length === 0 ? 'No requests have reached Purchasing yet.' : 'No records match these filters.'}</p>
+          <p className="mx-auto mt-1 max-w-md text-sm leading-6 text-slate-600">
             {records.length === 0 ? 'Approved requests will appear here as soon as they enter the PO preparation stage.' : 'Try a different search term or select all purchasing stages.'}
           </p>
         </div>
       ) : (
         <div className="space-y-4" aria-live="polite">
-          <p className="text-[10px] font-semibold text-slate-400">Showing {filteredRecords.length} of {records.length} records</p>
+          <p className="text-xs font-semibold text-slate-600">Showing {filteredRecords.length} of {records.length} records</p>
           {filteredRecords.map((record) => {
             const items = normalizeItems(record.itemsPayload);
             const po = record.purchaseOrders[0];
@@ -337,28 +337,28 @@ export default function PurchasingTrackingPage() {
             const expanded = expandedId === record.id;
             const total = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
             return (
-              <article key={record.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <div className={`h-1 ${record.status === PRStatus.Received_and_Closed ? 'bg-emerald-600' : 'bg-indigo-600'}`} />
+              <article key={record.id} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs">
+                <div className={`h-1 ${record.status === PRStatus.Received_and_Closed ? 'bg-emerald-600' : 'bg-emerald-700'}`} />
                 <div className="p-4 sm:p-5">
                   <div className="flex flex-col gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="min-w-0">
+                    <div className="min-w-0 [overflow-wrap:anywhere]">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-mono text-[11px] font-bold text-indigo-700">{po?.poNumber || 'PO not yet assigned'}</span>
-                        <span className={`rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ${presentation.className}`}>{presentation.label}</span>
+                        <span className="break-all font-mono text-sm font-semibold text-emerald-800">{po?.poNumber || 'PO not yet assigned'}</span>
+                        <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${presentation.className}`}>{presentation.label}</span>
                       </div>
-                      <h2 className="mt-2 text-sm font-bold leading-5 text-slate-900">{summarizeItems(items)}</h2>
-                      <p className="mt-1 text-[11px] text-slate-500">{record.department.code} · {record.department.name}</p>
+                      <h2 className="mt-2 break-words text-lg font-semibold leading-7 text-slate-900 [overflow-wrap:anywhere]">{summarizeItems(items)}</h2>
+                      <p className="mt-1 text-xs text-slate-600">{record.department.code} · {record.department.name}</p>
                     </div>
                     <div className="shrink-0 sm:text-right">
-                      <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400">Last updated</p>
-                      <time className="mt-1 block font-mono text-[10px] text-slate-600">{formatDate(record.updatedAt)}</time>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Last updated</p>
+                      <time className="mt-1 block font-mono text-xs text-slate-600">{formatDate(record.updatedAt)}</time>
                     </div>
                   </div>
 
                   <div className="py-5"><PurchasingProgress status={record.status} /></div>
 
                   <div className="flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex flex-wrap gap-x-5 gap-y-2 text-[10px] text-slate-500">
+                    <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-slate-600">
                       <span><strong className="text-slate-700">{items.reduce((sum, item) => sum + item.quantity, 0)}</strong> total units</span>
                       <span><strong className="text-slate-700">{total > 0 ? formatPeso(total) : 'Not recorded'}</strong> billed value</span>
                       <span><strong className="text-slate-700">{receipt ? `Received — ${receipt.condition}` : 'Awaiting intake'}</strong></span>
@@ -368,7 +368,7 @@ export default function PurchasingTrackingPage() {
                       aria-expanded={expanded}
                       aria-controls={`tracking-detail-${record.id}`}
                       onClick={() => setExpandedId(expanded ? null : record.id)}
-                      className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3.5 text-xs font-bold text-slate-700 transition hover:bg-slate-50"
+                      className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                     >
                       {expanded ? 'Hide details' : 'View full details'}
                       <ChevronIcon open={expanded} />
@@ -381,35 +381,41 @@ export default function PurchasingTrackingPage() {
                     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(300px,0.8fr)]">
                       <div className="space-y-5">
                         <div>
-                          <h3 className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Transaction details</h3>
+                          <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">Transaction details</h3>
                           <dl className="mt-3 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-2">
-                            <div><dt className="text-[9px] font-bold uppercase text-slate-400">Request reference</dt><dd className="mt-1 break-all font-mono text-[10px] text-slate-700">{record.id}</dd></div>
-                            <div><dt className="text-[9px] font-bold uppercase text-slate-400">PO created</dt><dd className="mt-1 text-xs font-semibold text-slate-700">{po ? formatDate(po.createdAt) : 'Pending preparation'}</dd></div>
-                            <div><dt className="text-[9px] font-bold uppercase text-slate-400">Payment method</dt><dd className="mt-1 text-xs font-semibold text-slate-700">{po?.paymentType === PaymentType.CREDIT_TERMS ? 'Credit / Charge Terms' : po ? 'Cash / Check' : 'Not assigned'}</dd></div>
-                            <div><dt className="text-[9px] font-bold uppercase text-slate-400">Finance clearance</dt><dd className="mt-1 text-xs font-semibold text-slate-700">{po?.isCheckIssued ? 'Cleared' : 'Pending'}</dd></div>
-                            <div className="sm:col-span-2"><dt className="text-[9px] font-bold uppercase text-slate-400">Justification</dt><dd className="mt-1 text-xs leading-5 text-slate-600">{record.justification}</dd></div>
+                            <div><dt className="text-xs font-semibold uppercase text-slate-600">Request reference</dt><dd className="mt-1 break-all font-mono text-xs text-slate-700">{record.id}</dd></div>
+                            <div><dt className="text-xs font-semibold uppercase text-slate-600">PO created</dt><dd className="mt-1 text-sm font-semibold text-slate-700">{po ? formatDate(po.createdAt) : 'Pending preparation'}</dd></div>
+                            <div><dt className="text-xs font-semibold uppercase text-slate-600">Payment method</dt><dd className="mt-1 text-sm font-semibold text-slate-700">{po?.paymentType === PaymentType.CREDIT_TERMS ? 'Credit / Charge Terms' : po ? 'Cash / Check' : 'Not assigned'}</dd></div>
+                            <div><dt className="text-xs font-semibold uppercase text-slate-600">Finance clearance</dt><dd className="mt-1 text-sm font-semibold text-slate-700">{po?.isCheckIssued ? 'Cleared' : 'Pending'}</dd></div>
+                            <div className="sm:col-span-2"><dt className="text-xs font-semibold uppercase text-slate-600">Justification</dt><dd className="mt-1 text-sm leading-6 text-slate-600">{record.justification}</dd></div>
                           </dl>
                         </div>
 
                         <div>
-                          <h3 className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Item breakdown</h3>
-                          <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200 bg-white">
+                          <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">Item breakdown</h3>
+                          <div className="mt-3 space-y-3 sm:hidden">
+                            {items.length === 0 ? <p className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">No structured item data recorded.</p> : items.map((item, index) => <article key={index} className="min-w-0 rounded-lg border border-slate-200 bg-white p-4">
+                              <h4 className="break-words text-sm font-semibold leading-6 text-slate-900 [overflow-wrap:anywhere]">{item.itemName}</h4>
+                              <dl className="mt-3 grid grid-cols-2 gap-3 text-sm"><div><dt className="text-xs text-slate-600">Quantity</dt><dd className="mt-1 font-medium">{item.quantity}</dd></div><div><dt className="text-xs text-slate-600">Unit price</dt><dd className="mt-1 break-words font-medium">{item.unitPrice > 0 ? formatPeso(item.unitPrice) : '—'}</dd></div><div className="col-span-2"><dt className="text-xs text-slate-600">Subtotal</dt><dd className="mt-1 break-words font-medium">{item.unitPrice > 0 ? formatPeso(item.quantity * item.unitPrice) : '—'}</dd></div></dl>
+                            </article>)}
+                          </div>
+                          <div className="mt-3 hidden rounded-xl border border-slate-200 bg-white sm:block"><p className="border-b border-slate-200 px-4 py-2 text-xs text-slate-600">Scroll horizontally to see all item columns if needed.</p><div tabIndex={0} role="region" aria-label="Item breakdown table" className="overflow-x-auto focus-visible:outline-2 focus-visible:outline-emerald-700">
                             <table className="w-full min-w-[520px] text-left text-xs">
-                              <thead><tr className="border-b border-slate-200 bg-slate-50 text-[9px] font-bold uppercase text-slate-400"><th className="px-4 py-2.5">Item</th><th className="px-4 py-2.5 text-right">Qty</th><th className="px-4 py-2.5 text-right">Unit price</th><th className="px-4 py-2.5 text-right">Subtotal</th></tr></thead>
+                              <thead><tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase text-slate-600"><th className="px-4 py-2.5">Item</th><th className="px-4 py-2.5 text-right">Qty</th><th className="px-4 py-2.5 text-right">Unit price</th><th className="px-4 py-2.5 text-right">Subtotal</th></tr></thead>
                               <tbody className="divide-y divide-slate-100">
-                                {items.length === 0 ? <tr><td colSpan={4} className="px-4 py-5 text-center text-slate-400">No structured item data recorded.</td></tr> : items.map((item, index) => (
-                                  <tr key={`${item.itemName}-${index}`}><td className="px-4 py-3 font-semibold text-slate-700">{item.itemName}</td><td className="px-4 py-3 text-right font-mono">{item.quantity}</td><td className="px-4 py-3 text-right font-mono">{item.unitPrice > 0 ? formatPeso(item.unitPrice) : '—'}</td><td className="px-4 py-3 text-right font-mono font-semibold">{item.unitPrice > 0 ? formatPeso(item.quantity * item.unitPrice) : '—'}</td></tr>
+                                {items.length === 0 ? <tr><td colSpan={4} className="px-4 py-5 text-center text-slate-600">No structured item data recorded.</td></tr> : items.map((item, index) => (
+                                  <tr key={`${item.itemName}-${index}`}><td className="max-w-xs break-words px-4 py-3 font-semibold text-slate-700 [overflow-wrap:anywhere]">{item.itemName}</td><td className="px-4 py-3 text-right font-mono">{item.quantity}</td><td className="px-4 py-3 text-right font-mono">{item.unitPrice > 0 ? formatPeso(item.unitPrice) : '—'}</td><td className="px-4 py-3 text-right font-mono font-semibold">{item.unitPrice > 0 ? formatPeso(item.quantity * item.unitPrice) : '—'}</td></tr>
                                 ))}
                               </tbody>
                             </table>
-                          </div>
+                          </div></div>
                         </div>
                       </div>
 
                       <div>
-                        <h3 className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Purchasing-stage history</h3>
+                        <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">Purchasing-stage history</h3>
                         {record.auditLogs.length === 0 ? (
-                          <p className="mt-3 rounded-xl border border-slate-200 bg-white p-4 text-xs text-slate-400">No purchasing-stage audit entries are recorded yet.</p>
+                          <p className="mt-3 rounded-xl border border-slate-200 bg-white p-4 text-xs text-slate-600">No purchasing-stage audit entries are recorded yet.</p>
                         ) : (
                           <ol className="relative mt-3 space-y-3 border-l-2 border-slate-200 pl-4">
                             {record.auditLogs.map((log) => {
@@ -418,11 +424,11 @@ export default function PurchasingTrackingPage() {
                                 <li key={log.id} className="relative rounded-xl border border-slate-200 bg-white p-3">
                                   <span aria-hidden="true" className="absolute -left-[21px] top-4 size-2.5 rounded-full border-2 border-white bg-emerald-700" />
                                   <div className="flex flex-wrap items-center justify-between gap-2">
-                                    <span className={`rounded-full border px-2 py-0.5 text-[8px] font-bold uppercase ${logStatus.className}`}>{logStatus.label}</span>
-                                    <time className="font-mono text-[9px] text-slate-400">{formatDate(log.createdAt)}</time>
+                                    <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold uppercase ${logStatus.className}`}>{logStatus.label}</span>
+                                    <time className="font-mono text-xs text-slate-600">{formatDate(log.createdAt)}</time>
                                   </div>
-                                  {log.remarks && <p className="mt-2 text-[10px] leading-4 text-slate-600">{log.remarks}</p>}
-                                  <p className="mt-2 break-all text-[9px] text-slate-400">{log.actor.role.replaceAll('_', ' ')} · {log.actor.email}</p>
+                                  {log.remarks && <p className="mt-2 text-xs leading-4 text-slate-600">{log.remarks}</p>}
+                                  <p className="mt-2 break-all text-xs text-slate-600">{log.actor.role.replaceAll('_', ' ')} · {log.actor.email}</p>
                                 </li>
                               );
                             })}
