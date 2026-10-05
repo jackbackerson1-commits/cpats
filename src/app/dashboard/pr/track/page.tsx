@@ -8,6 +8,9 @@ import { Role, PRStatus } from '@prisma/client';
 import { AuthUser } from '@/shared/session';
 import { deriveItemSummaryTitle } from '@/components/ui/WorkflowUI';
 
+// Tracking-only presentation: selections and actions share the institutional accent.
+const trackingRecordActionClass = 'inline-flex min-h-11 max-w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold leading-5 text-emerald-900 transition hover:border-emerald-700 hover:bg-emerald-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700';
+
 // ─── Type Definitions ─────────────────────────────────────────────────────────
 interface AuditLogNode {
   id?: string;
@@ -97,36 +100,36 @@ function mapStatusToBadge(status: PRStatus): {
     case PRStatus.Pending_Business_Approval:
       return {
         label: 'Pending Budget Check',
-        badgeClass: 'bg-amber-50 text-amber-800 border-amber-200',
-        dotClass: 'bg-amber-500 animate-pulse',
+        badgeClass: 'bg-slate-50 text-slate-700 border-slate-200',
+        dotClass: 'bg-emerald-700',
         rowAccent: '',
       };
     case PRStatus.Pending_Admin_Approval:
       return {
         label: 'Pending Executive Sign-off',
-        badgeClass: 'bg-sky-50 text-sky-800 border-sky-200',
-        dotClass: 'bg-sky-500 animate-pulse',
+        badgeClass: 'bg-slate-50 text-slate-700 border-slate-200',
+        dotClass: 'bg-emerald-700',
         rowAccent: '',
       };
     case PRStatus.Approved_Awaiting_PO:
       return {
         label: 'Approved — Awaiting PO',
-        badgeClass: 'bg-indigo-50 text-indigo-800 border-indigo-200',
-        dotClass: 'bg-indigo-500',
+        badgeClass: 'bg-slate-50 text-slate-700 border-slate-200',
+        dotClass: 'bg-emerald-700',
         rowAccent: '',
       };
     case PRStatus.Awaiting_Check_Issuance:
       return {
         label: 'Financial Clearance Pending',
-        badgeClass: 'bg-blue-50 text-blue-800 border-blue-200',
-        dotClass: 'bg-blue-500 animate-pulse',
+        badgeClass: 'bg-slate-50 text-slate-700 border-slate-200',
+        dotClass: 'bg-emerald-700',
         rowAccent: '',
       };
     case PRStatus.Ready_for_Purchase:
       return {
         label: 'Ready for Purchase',
-        badgeClass: 'bg-teal-50 text-teal-800 border-teal-200',
-        dotClass: 'bg-teal-500',
+        badgeClass: 'bg-slate-50 text-slate-700 border-slate-200',
+        dotClass: 'bg-emerald-700',
         rowAccent: '',
       };
     case PRStatus.Received_and_Closed:
@@ -139,15 +142,15 @@ function mapStatusToBadge(status: PRStatus): {
     case PRStatus.Returned_for_Correction:
       return {
         label: 'Action Needed: Returned',
-        badgeClass: 'bg-orange-50 text-orange-900 border-orange-300 ring-1 ring-orange-400/30',
-        dotClass: 'bg-orange-500 animate-pulse',
-        rowAccent: 'bg-orange-50/40 border-l-2 border-l-orange-400',
+        badgeClass: 'bg-amber-50/50 text-amber-900 border-amber-200/70',
+        dotClass: 'bg-amber-700',
+        rowAccent: '',
       };
     case PRStatus.Declined:
       return {
         label: 'Declined',
-        badgeClass: 'bg-rose-50 text-rose-800 border-rose-200',
-        dotClass: 'bg-rose-500',
+        badgeClass: 'bg-rose-50/40 text-rose-900 border-rose-200/70',
+        dotClass: 'bg-rose-700',
         rowAccent: '',
       };
     default:
@@ -242,9 +245,9 @@ function AuditTimeline({ logs, highlightedLogId }: { logs: AuditLogNode[]; highl
             <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-3 sm:p-4">
               <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
                 <span
-                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[12px] font-semibold tracking-normal border ${badgeInfo.badgeClass}`}
+                  className={`inline-flex max-w-full items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs font-medium leading-5 ${badgeInfo.badgeClass}`}
                 >
-                  <span className={`w-1.5 h-1.5 rounded-full ${badgeInfo.dotClass}`} />
+                  <span className={`size-1.5 shrink-0 rounded-full ${badgeInfo.dotClass}`} />
                   {badgeInfo.label}
                 </span>
                 <time className="font-mono text-[12px] tabular-nums text-slate-600">
@@ -378,14 +381,14 @@ function InspectionPanel({
             <div
               className={`rounded-xl border p-4 space-y-3 ${
                 isReturned
-                  ? 'bg-orange-50 border-orange-300'
-                  : 'bg-rose-50 border-rose-300'
+                  ? 'bg-amber-50/40 border-amber-200'
+                  : 'bg-rose-50/40 border-rose-200'
               }`}
             >
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <span
                   className={`text-sm font-semibold tracking-normal flex items-center gap-1.5 ${
-                    isReturned ? 'text-orange-900' : 'text-rose-900'
+                    isReturned ? 'text-amber-900' : 'text-rose-900'
                   }`}
                 >
                   <CircleAlert className="size-4 shrink-0" aria-hidden="true" />{isReturned ? 'Changes requested' : 'Request declined'}
@@ -430,7 +433,7 @@ function InspectionPanel({
                 <Link
                   href={`/dashboard/pr/new?returnId=${encodeURIComponent(node.id)}`}
                   onClick={() => sessionStorage.setItem('cpats:request-template-navigation', `return:${node.id}`)}
-                  className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-orange-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-orange-700 active:scale-[0.99]"
+                  className={`${requesterPrimaryClass} w-full sm:w-auto`}
                 >
                   <FileTextIcon className="size-4 shrink-0" />
                   Modify returned request
@@ -441,7 +444,7 @@ function InspectionPanel({
                 <Link
                   href={`/dashboard/pr/new?declineId=${encodeURIComponent(node.id)}`}
                   onClick={() => sessionStorage.setItem('cpats:request-template-navigation', `decline:${node.id}`)}
-                  className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-rose-700 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-800 active:scale-[0.99]"
+                  className={`${requesterPrimaryClass} w-full sm:w-auto`}
                 >
                   <FileTextIcon className="size-4 shrink-0" />
                   Start new request using these details
@@ -451,15 +454,15 @@ function InspectionPanel({
           )}
 
           {/* Requisition Scope Summary */}
-          <div className="space-y-4 rounded-xl border border-emerald-200/70 bg-[#ECFDF5] p-4 sm:p-5">
-            <div className="flex flex-col items-start gap-3 border-b border-emerald-200/50 pb-3 sm:flex-row sm:justify-between">
+          <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
+            <div className="flex flex-col items-start gap-3 border-b border-slate-200 pb-3 sm:flex-row sm:justify-between">
               <h2 className="text-base font-semibold text-slate-950 leading-6 flex-1 min-w-0 break-words [overflow-wrap:anywhere]">
                 {itemTitle}
               </h2>
               <span
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] font-semibold tracking-normal border shrink-0 ${badge.badgeClass}`}
+                className={`inline-flex max-w-full items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs font-medium leading-5 ${badge.badgeClass}`}
               >
-                <span className={`w-1.5 h-1.5 rounded-full ${badge.dotClass}`} />
+                <span className={`size-1.5 shrink-0 rounded-full ${badge.dotClass}`} />
                 {badge.label}
               </span>
             </div>
@@ -540,44 +543,19 @@ function MobileRequisitionCard({
   const itemTitle = deriveItemSummaryTitle(req.itemsPayload, req.justification);
   const isReturned = req.status === PRStatus.Returned_for_Correction;
   const isDeclined = req.status === PRStatus.Declined;
-  const isClosed = req.status === PRStatus.Received_and_Closed;
+
 
   return (
     <article
-      className={`bg-white rounded-xl border shadow-sm overflow-hidden transition-all ${
-        isReturned
-          ? 'border-orange-300'
-          : isDeclined
-          ? 'border-rose-200'
-          : isClosed
-          ? 'border-emerald-200'
-          : 'border-slate-200'
-      }`}
+      className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs"
     >
-      {/* Colored top accent bar */}
-      <div
-        className={`h-1 w-full ${
-          isReturned
-            ? 'bg-orange-400'
-            : isDeclined
-            ? 'bg-rose-400'
-            : isClosed
-            ? 'bg-emerald-500'
-            : req.status === PRStatus.Pending_Business_Approval
-            ? 'bg-amber-400'
-            : req.status === PRStatus.Pending_Admin_Approval
-            ? 'bg-sky-400'
-            : 'bg-[#047857]'
-        }`}
-      />
-
       <div className="p-4 space-y-3">
         {/* Card Header */}
-        <div className="flex items-start justify-between gap-2">
+        <div className="flex flex-wrap items-start justify-between gap-2">
           <span
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] font-semibold tracking-normal border ${badge.badgeClass}`}
+            className={`inline-flex max-w-full items-center gap-2 px-2.5 py-1.5 rounded-md text-xs font-medium leading-5 border ${badge.badgeClass}`}
           >
-            <span className={`w-1.5 h-1.5 rounded-full ${badge.dotClass}`} />
+            <span className={`size-1.5 shrink-0 rounded-full ${badge.dotClass}`} />
             {badge.label}
           </span>
           <time className="text-[12px] font-medium text-slate-600 shrink-0">
@@ -594,7 +572,7 @@ function MobileRequisitionCard({
           <h2 className="text-sm font-semibold text-slate-900 leading-snug break-words [overflow-wrap:anywhere]">
             {itemTitle}
           </h2>
-          <p className="text-sm text-slate-500 line-clamp-2 leading-relaxed italic">
+          <p className="text-sm text-slate-600 line-clamp-2 leading-6 break-words [overflow-wrap:anywhere]">
             &ldquo;{req.justification}&rdquo;
           </p>
         </div>
@@ -603,7 +581,7 @@ function MobileRequisitionCard({
         {isReturned && req.auditLogs && req.auditLogs.length > 0 && (() => {
           const log = req.auditLogs.find((l) => l.newState === PRStatus.Returned_for_Correction && l.remarks);
           return log ? (
-            <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 text-[12px] text-orange-900 italic line-clamp-2">
+            <div className="bg-amber-50/40 border border-amber-200 rounded-lg px-3 py-2 text-sm text-amber-900 line-clamp-2 break-words [overflow-wrap:anywhere]">
               &ldquo;{log.remarks}&rdquo;
             </div>
           ) : null;
@@ -625,15 +603,7 @@ function MobileRequisitionCard({
         <button
           type="button"
           onClick={() => onInspect(req)}
-          className={`w-full min-h-[44px] rounded-xl text-sm font-semibold transition flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98] border shadow-xs ${
-            isReturned
-              ? 'bg-orange-600 hover:bg-orange-700 text-white border-orange-600'
-              : isDeclined
-              ? 'bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100'
-              : isClosed
-              ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
-              : 'bg-slate-50 hover:bg-slate-100 text-slate-800 border-slate-200'
-          }`}
+          className={`${trackingRecordActionClass} w-full`}
         >
           {isReturned ? (
             <>
@@ -672,29 +642,21 @@ function SummaryStatsBar({ requests }: { requests: DepartmentPRNode[] }) {
   };
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
-      {[
-        { label: 'Total Filed', value: stats.total, color: 'text-slate-900', bg: 'bg-white border-slate-200' },
-        {
-          label: 'Action Needed',
-          value: stats.actionNeeded,
-          color: stats.actionNeeded > 0 ? 'text-orange-700' : 'text-slate-600',
-          bg: stats.actionNeeded > 0 ? 'bg-orange-50 border-orange-200' : 'bg-white border-slate-200',
-        },
-        { label: 'In Progress', value: stats.inProgress, color: 'text-[#047857]', bg: 'bg-white border-slate-200' },
-        { label: 'Completed', value: stats.closed, color: 'text-[#064E3B]', bg: 'bg-[#ECFDF5] border-emerald-200' },
-      ].map((stat) => (
-        <div
-          key={stat.label}
-          className={`${stat.bg} border rounded-xl px-3.5 py-2.5 sm:py-3 flex flex-col gap-0.5`}
-        >
-          <span className={`text-xl sm:text-2xl font-semibold ${stat.color}`}>{stat.value}</span>
-          <span className="text-xs font-semibold text-slate-600 tracking-normal">
-            {stat.label}
-          </span>
-        </div>
-      ))}
-    </div>
+    <section aria-label="Request summary" className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <dl className="grid grid-cols-2 sm:grid-cols-4">
+        {[
+          { label: 'Total Filed', value: stats.total },
+          { label: 'Action Needed', value: stats.actionNeeded },
+          { label: 'In Progress', value: stats.inProgress },
+          { label: 'Completed', value: stats.closed },
+        ].map((stat, index) => (
+          <div key={stat.label} className={`min-w-0 px-4 py-4 sm:px-5 ${index > 1 ? 'border-t border-slate-200 sm:border-t-0' : ''} ${index % 2 ? 'border-l border-slate-200' : ''} ${index === 2 ? 'sm:border-l' : ''}`}>
+            <dt className="text-xs font-medium text-slate-600">{stat.label}</dt>
+            <dd className="mt-2 text-2xl font-semibold tabular-nums tracking-tight text-slate-950">{stat.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   );
 }
 
@@ -742,7 +704,7 @@ function RequisitionEmptyState({
         {isFiltered ? 'No requests match these filters' : 'No purchase requests on file'}
       </h3>
 
-      <p className="mt-1 text-sm text-slate-500 max-w-sm mx-auto leading-normal">
+      <p className="mx-auto mt-1 max-w-sm break-words text-sm leading-6 text-slate-600 [overflow-wrap:anywhere]">
         {isFiltered
           ? getFilteredMessage()
           : 'Your department has not submitted any purchase requests yet.'}
@@ -951,7 +913,8 @@ export default function RequestTrackingPage() {
           <SummaryStatsBar requests={requests} />
 
           {/* ─── Search & Filter Control Bar ────────────────────────────────── */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-3.5 sm:p-4 space-y-3">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5 space-y-4">
+            <p className="text-sm font-semibold text-slate-950">Find a request</p>
             {/* Search */}
             <div className="relative">
               <SearchIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-600 size-4 select-none pointer-events-none"/>
@@ -960,14 +923,14 @@ export default function RequestTrackingPage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search by equipment name, reference ID, or justification…"
-                className="w-full h-11 pl-10 pr-9 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder:text-slate-600 focus:bg-white focus:border-[#047857] focus:ring-2 focus:ring-[#047857]/15 outline-none transition"
+                className="w-full min-w-0 h-11 pl-10 pr-12 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 placeholder:text-slate-500 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/15 outline-none transition"
                 aria-label="Search requisitions"
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-600 text-sm font-semibold cursor-pointer"
+                  className="absolute right-0.5 top-1/2 grid size-11 -translate-y-1/2 place-items-center rounded-lg text-slate-600 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-emerald-700"
                   aria-label="Clear search"
                 >
                   <X className="size-4" aria-hidden="true" />
@@ -994,19 +957,7 @@ export default function RequestTrackingPage() {
       key={pill.id}
       type="button"
       onClick={() => setStatusFilter(pill.id)}
-      className={`min-h-[44px] px-3.5 py-1.5 rounded-lg border text-sm font-semibold transition whitespace-nowrap cursor-pointer shrink-0 inline-flex items-center gap-1.5 ${
-        statusFilter === pill.id
-          ? pill.id === 'ACTION_REQUIRED'
-            ? 'bg-orange-600 text-white border-orange-600 shadow-sm'
-            : pill.id === 'DECLINED'
-            ? 'bg-rose-700 text-white border-rose-700 shadow-sm'
-            : 'bg-[#064E3B] text-white border-[#064E3B] shadow-sm'
-          : pill.id === 'ACTION_REQUIRED'
-          ? 'bg-orange-50 text-orange-800 border-orange-200 hover:bg-orange-100'
-          : pill.id === 'DECLINED'
-          ? 'bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100'
-          : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-      }`}
+      className={`inline-flex min-h-11 max-w-full items-center gap-2 rounded-lg border px-3.5 py-2 text-sm font-medium leading-5 transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 ${statusFilter === pill.id ? 'border-emerald-800 bg-emerald-800 text-white' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'}`}
       aria-pressed={statusFilter === pill.id}
     >
       {pill.id === 'ACTION_REQUIRED' && (
@@ -1065,9 +1016,9 @@ export default function RequestTrackingPage() {
               {/* ═══════════════════════════════════════════════════════════════ */}
               {/* Desktop: request table when adequate width is available        */}
               {/* ═══════════════════════════════════════════════════════════════ */}
-              <div className="hidden xl:block bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+              <div className="hidden xl:block overflow-hidden rounded-xl border border-slate-200 bg-white">
                 {/* Table header context */}
-                <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
                   <span className="text-[12px] font-semibold text-slate-600 tracking-normal">
                     Department Procurement Records — {activeUser.departmentCode}
                   </span>
@@ -1077,9 +1028,10 @@ export default function RequestTrackingPage() {
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="w-full border-collapse text-left min-w-[780px]" role="table">
+                  <table className="w-full table-fixed border-collapse text-left" role="table">
+                    <colgroup><col className="w-[13%]" /><col className="w-[24%]" /><col className="w-[18%]" /><col className="w-[10%]" /><col className="w-[18%]" /><col className="w-[17%]" /></colgroup>
                     <thead>
-                      <tr className="border-b border-slate-200 text-slate-600 text-[12px] font-semibold tracking-normal">
+                      <tr className="border-b border-slate-200 bg-slate-50 text-xs font-medium text-slate-600">
                         <th scope="col" className="px-5 py-3.5 whitespace-nowrap">
                           Reference
                         </th>
@@ -1106,21 +1058,21 @@ export default function RequestTrackingPage() {
                         const itemTitle = deriveItemSummaryTitle(req.itemsPayload, req.justification);
                         const isReturned = req.status === PRStatus.Returned_for_Correction;
                         const isDeclined = req.status === PRStatus.Declined;
-                        const isClosed = req.status === PRStatus.Received_and_Closed;
+
 
                         return (
                           <tr
                             key={req.id}
                             className={`transition-colors ${
                               isReturned
-                                ? 'bg-orange-50/40 hover:bg-orange-50'
+                                ? 'bg-white hover:bg-slate-50'
                                 : 'hover:bg-slate-50/60'
                             }`}
                           >
                             {/* Reference Code */}
                             <td className="px-5 py-4 whitespace-nowrap">
                               <div className="space-y-1">
-                                <code className="font-mono text-[12px] font-semibold text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">
+                                <code className="break-all font-mono text-xs leading-5 text-slate-600" title={req.id}>
                                   {req.id.substring(0, 13)}…
                                 </code>
                                 {req.isDirectPoBypass && (
@@ -1132,23 +1084,23 @@ export default function RequestTrackingPage() {
                             </td>
 
                             {/* Item Name */}
-                            <td className="px-5 py-4 max-w-[220px]">
-                              <span className="font-semibold text-slate-900 line-clamp-2 leading-snug block">
+                            <td className="px-5 py-5 align-top">
+                              <span className="block break-words text-sm font-semibold leading-6 text-slate-900 [overflow-wrap:anywhere]">
                                 {itemTitle}
                               </span>
                             </td>
 
                             {/* Justification */}
                             <td
-                              className="px-5 py-4 max-w-[200px] text-slate-500 font-medium italic truncate"
+                              className="px-5 py-5 align-top text-sm leading-6 text-slate-600"
                               title={req.justification}
                             >
-                              &ldquo;{req.justification}&rdquo;
+                              <span className="line-clamp-2 break-words [overflow-wrap:anywhere]">{req.justification}</span>
                             </td>
 
                             {/* Date */}
                             <td className="px-5 py-4 whitespace-nowrap">
-                              <time className="font-mono text-[12px] text-slate-500">
+                              <time className="text-xs leading-5 text-slate-600">
                                 {new Date(req.createdAt).toLocaleDateString('en-PH', {
                                   month: 'short',
                                   day: 'numeric',
@@ -1158,29 +1110,21 @@ export default function RequestTrackingPage() {
                             </td>
 
                             {/* Status Badge */}
-                            <td className="px-5 py-4 whitespace-nowrap">
+                            <td className="px-5 py-5 align-top">
                               <span
-                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] font-semibold tracking-normal border ${badge.badgeClass}`}
+                                className={`inline-flex max-w-full items-center gap-2 px-2.5 py-1.5 rounded-md text-xs font-medium leading-5 border ${badge.badgeClass}`}
                               >
-                                <span className={`w-1.5 h-1.5 rounded-full ${badge.dotClass}`} />
+                                <span className={`size-1.5 shrink-0 rounded-full ${badge.dotClass}`} />
                                 {badge.label}
                               </span>
                             </td>
 
                             {/* Action Button */}
-                            <td className="px-5 py-4 text-right whitespace-nowrap">
+                            <td className="px-5 py-5 text-right align-top">
                               <button
                                 type="button"
                                 onClick={() => openInspection(req)}
-                                className={`min-h-[44px] px-3.5 py-1.5 rounded-lg text-sm font-semibold transition cursor-pointer border shadow-xs active:scale-95 inline-flex items-center justify-center gap-1.5 ${
-                                  isReturned
-                                    ? 'bg-orange-600 hover:bg-orange-700 text-white border-orange-600'
-                                    : isDeclined
-                                    ? 'bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100'
-                                    : isClosed
-                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
-                                    : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
-                                }`}
+                                className={trackingRecordActionClass}
                               >
                                 {isReturned ? (
                                   <>
