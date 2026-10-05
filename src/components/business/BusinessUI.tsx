@@ -8,7 +8,7 @@ export type { QueueTask } from '@/components/ui/WorkflowUI';
 
 // Local presentation primitives: other offices retain their existing components.
 export function PageShell({ children }: { children: React.ReactNode }) {
-  return <main className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6 text-slate-900 sm:px-6 sm:py-8 lg:px-8">{children}</main>;
+  return <main className="mx-auto w-full max-w-[1920px] space-y-6 px-4 py-6 text-slate-900 sm:px-6 sm:py-8 lg:px-8">{children}</main>;
 }
 
 export function StageHeader({ title, description, meta }: {
