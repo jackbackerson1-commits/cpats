@@ -446,7 +446,7 @@ export default function NewPurchaseRequestPage() {
     : 'Your request goes to the Business Office for review and recording.';
 
   return (
-    <main className="mx-auto w-full max-w-7xl px-4 py-6 pb-36 text-slate-900 sm:px-6 sm:py-8 sm:pb-36 lg:px-8 lg:pb-10">
+    <main className="mx-auto w-full max-w-[1920px] px-4 py-6 pb-36 text-slate-900 sm:px-6 sm:py-8 sm:pb-36 lg:px-8 lg:pb-10">
       <RequesterPageHeader title={modeTitle} description={returnedRequestId ? 'Use the evaluator’s feedback to revise your saved details, then resubmit the same request.' : sourceDeclineId ? 'Review the saved details and feedback before creating a new request.' : 'Tell us what your department needs and why. You can check your details before submitting.'} department={`${activeUser.departmentName} (${activeUser.departmentCode})`} action={<TrackRequestsLink />} />
 
       {systemError && (
