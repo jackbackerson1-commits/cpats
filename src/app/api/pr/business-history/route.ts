@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
         auditLogs: {
           some: {
             actor: { role: Role.Business_Office },
-            previousState: PRStatus.Pending_Business_Approval,
+            previousState: { in: [PRStatus.Pending_Business_Approval, PRStatus.Returned_for_Correction] },
             newState: { in: BUSINESS_DECISIONS },
           },
         },
@@ -34,8 +34,22 @@ export async function GET(request: NextRequest) {
         createdAt: true,
         itemsPayload: true,
         department: { select: { code: true, name: true } },
+        purchaseOrders: {
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          select: {
+            id: true,
+            poNumber: true,
+            paymentType: true,
+            isCheckIssued: true,
+            createdAt: true,
+            receivingReports: {
+              orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+              select: { id: true, invoiceFilePath: true, createdAt: true },
+            },
+          },
+        },
         auditLogs: {
-          orderBy: { createdAt: 'desc' },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
           select: {
             id: true,
             createdAt: true,

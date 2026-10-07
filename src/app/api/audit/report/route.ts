@@ -48,7 +48,13 @@ export async function POST(request: NextRequest) {
           select: { name: true, code: true }
         },
         purchaseOrders: {
-          select: { poNumber: true, isCheckIssued: true }
+          select: {
+            poNumber: true, isCheckIssued: true, qrCodeToken: true, paymentType: true,
+            receivingReports: {
+              orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+              select: { id: true, condition: true, createdAt: true, remarks: true, invoiceFilePath: true, asssetImageFilePath: true },
+            },
+          }
         },
         auditLogs: {
           orderBy: { createdAt: 'desc' },
