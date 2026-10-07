@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Role } from '@prisma/client';
 import { getAuthenticatedUser, AuthUser } from '@/shared/session';
 import { prisma } from '@/shared/prisma';
+import { ASSET_REGISTER_ROLES } from '@/shared/asset-access';
 
 export const ROUTE_ROLE_MAP: Record<string, Role[]> = {
   '/dashboard/pr': [Role.Requesting_Office],
@@ -14,7 +15,9 @@ export const ROUTE_ROLE_MAP: Record<string, Role[]> = {
   '/dashboard/po/reports': [Role.Purchasing_Office],
   '/dashboard/po/release-check': [Role.Business_Office],
   '/dashboard/receiving/new': [Role.Receiving_Custodian],
+  '/dashboard/receiving/history': [Role.Receiving_Custodian],
   '/dashboard/audit': [Role.Global_Auditor],
+  '/dashboard/assets': ASSET_REGISTER_ROLES,
   '/dashboard/system/accounts': [Role.System_Administrator],
   '/dashboard/notifications': Object.values(Role),
 };
