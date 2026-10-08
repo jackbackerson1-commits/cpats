@@ -1,0 +1,31 @@
+import assert from 'node:assert/strict';
+import { NextRequest } from 'next/server';
+import { Role, PRStatus } from '@prisma/client';
+import { prisma } from '../src/shared/prisma';
+import { POST, GET } from '../src/app/api/assets/route';
+async function main() {
+  assert.equal(process.env.DATABASE_PORT,'3307');
+  assert.equal(process.env.DATABASE_NAME,'cpats_asset_test');
+  const fixtureKey=crypto.randomUUID();
+  const department=await prisma.department.create({data:{code:fixtureKey,name:'Isolated QR Test '+fixtureKey}});
+  const user=await prisma.user.create({data:{email:fixtureKey+'@isolated.test',passwordHash:'test-only',role:Role.Receiving_Custodian,departmentId:department.id}});
+  const pr=await prisma.purchaseRequest.create({data:{departmentId:department.id,creatorId:user.id,itemsPayload:[{itemName:'Dell computer',quantity:3},{itemName:'Printer',quantity:2}],justification:'Isolated QR integration verification',status:PRStatus.Received_and_Closed}});
+  const po=await prisma.purchaseOrder.create({data:{poNumber:'PO-QR-'+fixtureKey,purchaseRequestId:pr.id,qrCodeToken:'PO-TOKEN-'+crypto.randomUUID(),isCheckIssued:true}});
+  const report=await prisma.receivingReport.create({data:{purchaseOrderId:po.id,condition:'Good',invoiceFilePath:'/test/invoice',asssetImageFilePath:'/test/photo'}});
+  const headers={'x-user-id':user.id,'x-user-role':user.role,'x-user-department-id':department.id,'x-user-session-version':'0','Content-Type':'application/json'};
+  const request=(unitNumber:number,serialNumber='')=>new NextRequest('http://localhost/api/assets',{method:'POST',headers,body:JSON.stringify({receivingReportId:report.id,lineIndex:0,units:[{unitNumber,serialNumber}]})});
+  const parallel=await Promise.all([POST(request(1,'DELL-ONE')),POST(request(1,'DELL-ONE'))]);
+  assert.deepEqual(parallel.map(r=>r.status).sort(),[201,409]);
+  const serialRace=await Promise.all([POST(request(2,'DUP-SERIAL')),POST(request(3,'dup-serial'))]);
+  assert.deepEqual(serialRace.map(r=>r.status).sort(),[201,409]);
+  const freeUnit=(await prisma.assetUnit.findMany({where:{purchaseOrderId:po.id}})).some(u=>u.unitNumber===2)?3:2;
+  assert.equal((await POST(request(freeUnit,'DELL-LAST'))).status,201);
+  const saved=await prisma.assetUnit.findMany({where:{purchaseOrderId:po.id}});
+  assert.equal(saved.length,3); assert.equal(new Set(saved.map(u=>u.qrCodeToken)).size,3);
+  const loaded=await GET(new NextRequest('http://localhost/api/assets?q=PO-QR-'+fixtureKey,{headers}));
+  assert.equal((await loaded.json()).assets.length,3);
+  assert.equal((await prisma.purchaseRequest.findUniqueOrThrow({where:{id:pr.id}})).status,PRStatus.Received_and_Closed);
+  assert.equal(await prisma.auditLog.count({where:{prId:pr.id}}),0);
+  console.log('PASS: real MariaDB migration, concurrent duplicate unit, concurrent duplicate serial, three unique equipment tags, saved lookup, unchanged request and audit history. Isolated database only.');
+}
+main().finally(()=>prisma.$disconnect());
