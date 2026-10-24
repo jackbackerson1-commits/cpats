@@ -1,8 +1,13 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { CheckCircle2, Clock3, PackageCheck } from 'lucide-react';
+import { QueueFilters, useQueueFilters, WaitingTime } from '@/components/ui/QueueFilters';
+import { matchesQueueFilters } from '@/shared/queue-insights';
+import { matchesTrackingView, sortTrackingRecords, trackingPage, type TrackingSort, type TrackingView } from '@/shared/purchasing-tracking';
 import { PaymentType, PRStatus, Role } from '@prisma/client';
 import { ErrorBanner, PageShell, StageHeader } from '@/components/purchasing/PurchasingUI';
+import '@/components/purchasing/po-tracking-workspace.css';
 
 interface ItemNode {
   itemName: string;
@@ -73,11 +78,11 @@ function stageIndex(status: PRStatus) {
 function statusPresentation(status: PRStatus) {
   switch (status) {
     case PRStatus.Approved_Awaiting_PO:
-      return { label: 'PO Preparation', className: 'border-indigo-200 bg-indigo-50 text-indigo-800' };
+      return { label: 'PO Preparation', className: 'border-emerald-200 bg-emerald-50 text-emerald-800' };
     case PRStatus.Awaiting_Check_Issuance:
       return { label: 'Finance Clearance', className: 'border-blue-200 bg-blue-50 text-blue-800' };
     case PRStatus.Ready_for_Purchase:
-      return { label: 'Ready for Purchase', className: 'border-amber-200 bg-amber-50 text-amber-800' };
+      return { label: 'Ready for Purchase', className: 'border-indigo-200 bg-indigo-50 text-indigo-800' };
     case PRStatus.Received_and_Closed:
       return { label: 'Received & Closed', className: 'border-emerald-200 bg-emerald-50 text-emerald-800' };
     default:
@@ -133,10 +138,6 @@ function RefreshIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="size-4"><path d="M20 7v5h-5M4 17v-5h5" strokeLinecap="round" strokeLinejoin="round" /><path d="M6.1 9a7 7 0 0 1 11.5-2L20 9M4 15l2.4 2a7 7 0 0 0 11.5-2" strokeLinecap="round" /></svg>;
 }
 
-function ChevronIcon({ open }: { open: boolean }) {
-  return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`size-4 transition-transform ${open ? 'rotate-180' : ''}`}><path d="m7 10 5 5 5-5" strokeLinecap="round" strokeLinejoin="round" /></svg>;
-}
-
 function CheckIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="size-3.5"><path d="m5 12.5 4.2 4.2L19 7" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 }
@@ -146,7 +147,7 @@ function PurchasingProgress({ status }: { status: PRStatus }) {
   const closed = status === PRStatus.Received_and_Closed;
 
   return (
-    <nav aria-label="Purchasing transaction progress" className="relative pt-1">
+    <nav aria-label="Purchasing transaction progress" className="po-tracking-progress relative pt-1">
       <div aria-hidden="true" className="absolute left-[12.5%] right-[12.5%] top-[17px] h-0.5 bg-slate-200" />
       <div
         aria-hidden="true"
@@ -200,8 +201,13 @@ export default function PurchasingTrackingPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [queueFilters, setQueueFilters] = useQueueFilters();
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [view, setView] = useState<TrackingView>('all');
+  const [sort, setSort] = useState<TrackingSort>('recent');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -232,6 +238,8 @@ export default function PurchasingTrackingPage() {
   const filteredRecords = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     return records.filter((record) => {
+      if (!matchesTrackingView(record, view)) return false;
+      if (!matchesQueueFilters({ ...record, department: record.department.name }, queueFilters)) return false;
       if (statusFilter !== 'ALL' && record.status !== statusFilter) return false;
       if (!query) return true;
       const items = normalizeItems(record.itemsPayload);
@@ -245,7 +253,11 @@ export default function PurchasingTrackingPage() {
       ].join(' ').toLowerCase();
       return searchable.includes(query);
     });
-  }, [records, searchQuery, statusFilter]);
+  }, [records, searchQuery, statusFilter, queueFilters, view]);
+
+  const sortedRecords = useMemo(() => sortTrackingRecords(filteredRecords, sort), [filteredRecords, sort]);
+  const pagination = trackingPage(sortedRecords, page, pageSize);
+  const selectedRecord = records.find(record => record.id === selectedId);
 
   const counts = useMemo(() => ({
     total: records.length,
@@ -253,9 +265,10 @@ export default function PurchasingTrackingPage() {
     finance: records.filter((record) => record.status === PRStatus.Awaiting_Check_Issuance).length,
     received: records.filter((record) => record.status === PRStatus.Received_and_Closed).length,
   }), [records]);
+  const financeFilterActive = statusFilter === PRStatus.Awaiting_Check_Issuance && view !== 'received';
 
   return (
-    <PageShell>
+    <PageShell className="po-tracking-page">
       <StageHeader
         eyebrow="Purchasing Office · Read-only transaction visibility"
         title="Track purchase orders"
@@ -265,36 +278,33 @@ export default function PurchasingTrackingPage() {
 
       {error && <div className=""><ErrorBanner>{error}</ErrorBanner></div>}
 
-      <section aria-label="Tracking summary" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {[
-          { label: 'Total Records', value: counts.total, tone: 'text-slate-900' },
-          { label: 'In Progress', value: counts.active, tone: 'text-emerald-800' },
-          { label: 'At Finance', value: counts.finance, tone: 'text-blue-700' },
-          { label: 'Received', value: counts.received, tone: 'text-emerald-700' },
-        ].map((metric) => (
-          <div key={metric.label} className="rounded-xl border border-slate-200 bg-white px-4 py-3.5 shadow-xs">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">{metric.label}</p>
-            <p className={`mt-1 font-mono text-xl font-semibold ${metric.tone}`}>{metric.value}</p>
-          </div>
-        ))}
-      </section>
-
-      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs" aria-label="Tracking filters">
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_260px_auto]">
-          <div className="relative">
-            <input
-              type="search"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search PO, request ID, department, or item…"
-              aria-label="Search purchasing tracking records"
-              className="min-h-11 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-3 text-sm text-slate-800 outline-none transition focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10 [&+svg]:pointer-events-none"
-            />
+      <section className="po-tracking-filters rounded-xl border border-slate-200 bg-white p-4 shadow-xs" aria-label="Tracking filters">
+        <div className="po-tracking-command-bar">
+          <div className="relative po-tracking-search">
+            <input type="search" value={searchQuery}
+              onChange={(event) => { setSearchQuery(event.target.value); setPage(1); }}
+              placeholder="Search PO, request ID, department, or item…" aria-label="Search purchasing tracking records"
+              className="min-h-11 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-3 text-sm text-slate-800 outline-none transition focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10" />
             <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-600"><SearchIcon /></span>
           </div>
+          <div role="group" aria-label="Tracking view" className="po-tracking-view-filters">
+            {([
+              { id: 'all', view: 'all', stage: 'ALL', label: 'Total records', count: counts.total, hint: 'All purchasing stages' },
+              { id: 'active', view: 'active', stage: 'ALL', label: 'In progress', count: counts.active, hint: 'Preparation to fulfillment' },
+              { id: 'finance', view: 'all', stage: PRStatus.Awaiting_Check_Issuance, label: 'At finance', count: counts.finance, hint: 'Awaiting financial clearance' },
+              { id: 'received', view: 'received', stage: 'ALL', label: 'Received & closed', count: counts.received, hint: 'Completed transactions' },
+            ] as const).map(({ id, view: nextView, stage, label, count, hint }) => (
+              <button key={id} type="button" title={hint}
+                aria-pressed={id === 'finance' ? financeFilterActive : view === nextView && !financeFilterActive}
+                onClick={() => { setView(nextView); setStatusFilter(stage); setPage(1); }}>
+                <span>{label}</span><span className="tabular-nums">{count}</span>
+              </button>
+            ))}
+          </div>
+
           <select
             value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value)}
+            onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }}
             aria-label="Filter by purchasing stage"
             className="min-w-0 min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10"
           >
@@ -310,75 +320,113 @@ export default function PurchasingTrackingPage() {
             {loading ? 'Refreshing…' : 'Refresh'}
           </button>
         </div>
+        <details className="mt-3"><summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold text-slate-700">Department and submitted-date filters</summary><QueueFilters records={records.map(record => ({ ...record, department: record.department.name }))} value={queueFilters} onChange={(value) => { setQueueFilters(value); setPage(1); }} showStatus={false} onClear={() => { setSearchQuery(''); setStatusFilter('ALL'); setView('all'); setPage(1); }} /></details>
       </section>
 
       {loading && records.length === 0 ? (
         <TrackingSkeleton />
       ) : error && records.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-rose-200 bg-white px-6 py-16 text-center">
+        <div className="po-tracking-empty rounded-xl border border-dashed border-rose-200 bg-white px-6 py-16 text-center">
           <p className="text-sm font-semibold text-slate-700">Tracking records are temporarily unavailable.</p>
           <p className="mx-auto mt-1 max-w-md text-sm leading-6 text-slate-600">Use Refresh to try loading the authoritative register again.</p>
         </div>
       ) : filteredRecords.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center">
+        <div className="po-tracking-empty rounded-xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center">
           <p className="text-sm font-semibold text-slate-700">{records.length === 0 ? 'No requests have reached Purchasing yet.' : 'No records match these filters.'}</p>
           <p className="mx-auto mt-1 max-w-md text-sm leading-6 text-slate-600">
-            {records.length === 0 ? 'Approved requests will appear here as soon as they enter the PO preparation stage.' : 'Try a different search term or select all purchasing stages.'}
+            {records.length === 0 ? 'Approved requests will appear here as soon as they enter the PO preparation stage.' : 'Adjust or clear the filters to see the full purchasing register.'}
           </p>
         </div>
       ) : (
-        <div className="space-y-4" aria-live="polite">
-          <p className="text-xs font-semibold text-slate-600">Showing {filteredRecords.length} of {records.length} records</p>
-          {filteredRecords.map((record) => {
-            const items = normalizeItems(record.itemsPayload);
-            const po = record.purchaseOrders[0];
-            const receipt = po?.receivingReports[0];
-            const presentation = statusPresentation(record.status);
-            const expanded = expandedId === record.id;
-            const total = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-            return (
-              <article key={record.id} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs">
-                <div className={`h-1 ${record.status === PRStatus.Received_and_Closed ? 'bg-emerald-600' : 'bg-emerald-700'}`} />
-                <div className="p-4 sm:p-5">
-                  <div className="flex flex-col gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="min-w-0 [overflow-wrap:anywhere]">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="break-all font-mono text-sm font-semibold text-emerald-800">{po?.poNumber || 'PO not yet assigned'}</span>
-                        <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${presentation.className}`}>{presentation.label}</span>
-                      </div>
-                      <h2 className="mt-2 break-words text-lg font-semibold leading-7 text-slate-900 [overflow-wrap:anywhere]">{summarizeItems(items)}</h2>
-                      <p className="mt-1 text-xs text-slate-600">{record.department.code} · {record.department.name}</p>
-                    </div>
-                    <div className="shrink-0 sm:text-right">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Last updated</p>
-                      <time className="mt-1 block font-mono text-xs text-slate-600">{formatDate(record.updatedAt)}</time>
-                    </div>
-                  </div>
+        <section aria-label="Order register" className="min-w-0 space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p role="status" className="text-xs font-semibold text-slate-600">Showing {pagination.start}–{pagination.end} of {filteredRecords.length} matching records · {records.length} total</p>
+            <label className="flex flex-wrap items-center gap-2 text-sm text-slate-700">Sort by
+              <select value={sort} onChange={event => { setSort(event.target.value as TrackingSort); setPage(1); }} className="min-h-11 min-w-0 max-w-full rounded-lg border border-slate-300 bg-white px-3 text-sm">
+                <option value="recent">Recently updated</option><option value="waiting">Longest waiting in current stage</option>
+              </select>
+            </label>
+          </div>
+          <div className="po-tracking-table overflow-hidden rounded-xl border border-slate-200 bg-white">
+            <table className="w-full table-fixed text-left text-sm">
+              <caption className="sr-only">Purchasing orders. Open View details for the full progress and transaction history.</caption>
+              <thead className="border-b border-slate-200 bg-slate-50 text-xs text-slate-600"><tr>
+                <th scope="col" className="w-[22%] p-4">Reference / items</th><th scope="col" className="w-[15%] p-4">Office</th><th scope="col" className="w-[18%] p-4">Current stage</th><th scope="col" className="w-[16%] p-4">Time in stage</th><th scope="col" className="w-[16%] p-4">Last updated</th><th scope="col" className="w-[13%] p-4">Details</th>
+              </tr></thead>
+              <tbody className="divide-y divide-slate-100">
+                {pagination.records.map(record => <tr key={record.id} className="align-top hover:bg-emerald-50/40">
+                  <td className="p-4 [overflow-wrap:anywhere]"><RecordReference record={record} /><p className="mt-2 line-clamp-2 text-slate-800">{summarizeItems(normalizeItems(record.itemsPayload))}</p></td>
+                  <td className="p-4 [overflow-wrap:anywhere]"><p className="font-semibold">{record.department.code}</p><p className="mt-1 text-xs text-slate-600">{record.department.name}</p></td>
+                  <td className="p-4"><StatusBadge status={record.status} /></td>
+                  <td className="p-4"><WaitingTime record={record} /></td>
+                  <td className="p-4 text-xs leading-5 text-slate-600"><time dateTime={record.updatedAt}>{formatDate(record.updatedAt)}</time></td>
+                  <td className="p-4"><ViewButton record={record} onOpen={setSelectedId} /></td>
+                </tr>)}
+              </tbody>
+            </table>
+          </div>
+          <div className="po-tracking-cards grid min-w-0 gap-3 md:grid-cols-2">
+            {pagination.records.map(record => <article key={record.id} className="min-w-0 space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-xs [overflow-wrap:anywhere]">
+              <RecordReference record={record} />
+              <h2 className="line-clamp-2 text-sm font-semibold text-slate-900">{summarizeItems(normalizeItems(record.itemsPayload))}</h2>
+              <p className="text-xs text-slate-600">{record.department.code} · {record.department.name}</p>
+              <StatusBadge status={record.status} /><WaitingTime record={record} />
+              <p className="text-xs text-slate-600">Updated <time dateTime={record.updatedAt}>{formatDate(record.updatedAt)}</time></p>
+              <ViewButton record={record} onOpen={setSelectedId} />
+            </article>)}
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3">
+            <label className="flex items-center gap-2 text-sm text-slate-700">Orders per page <select value={pageSize} onChange={event => { setPageSize(Number(event.target.value)); setPage(1); }} className="min-h-11 rounded-lg border border-slate-300 px-3"><option value={10}>10</option><option value={25}>25</option></select></label>
+            <nav aria-label="Order register pagination" className="flex flex-wrap items-center gap-2 text-sm">
+              <button type="button" disabled={pagination.page === 1} onClick={() => setPage(pagination.page - 1)} className="min-h-11 rounded-lg border border-slate-300 px-3 disabled:opacity-40">Previous</button>
+              <span aria-current="page" className="px-2">Page {pagination.page} of {pagination.totalPages}</span>
+              <button type="button" disabled={pagination.page === pagination.totalPages} onClick={() => setPage(pagination.page + 1)} className="min-h-11 rounded-lg border border-slate-300 px-3 disabled:opacity-40">Next</button>
+            </nav>
+          </div>
+        </section>
+      )}
+      {selectedRecord && <TrackingDetails key={selectedRecord.id} record={selectedRecord} onClose={() => setSelectedId(null)} />}
+    </PageShell>
+  );
+}
 
-                  <div className="py-5"><PurchasingProgress status={record.status} /></div>
+function StatusBadge({ status }: { status: PRStatus }) {
+  const presentation = statusPresentation(status);
+  const Icon = status === PRStatus.Received_and_Closed ? PackageCheck : status === PRStatus.Approved_Awaiting_PO ? CheckCircle2 : Clock3;
+  return <span className={'purchasing-status max-w-full border text-xs font-semibold ' + presentation.className}><Icon className="size-4 shrink-0" aria-hidden="true" />{presentation.label}</span>;
+}
 
-                  <div className="flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-slate-600">
-                      <span><strong className="text-slate-700">{items.reduce((sum, item) => sum + item.quantity, 0)}</strong> total units</span>
-                      <span><strong className="text-slate-700">{total > 0 ? formatPeso(total) : 'Not recorded'}</strong> billed value</span>
-                      <span><strong className="text-slate-700">{receipt ? `Received — ${receipt.condition}` : 'Awaiting intake'}</strong></span>
-                    </div>
-                    <button
-                      type="button"
-                      aria-expanded={expanded}
-                      aria-controls={`tracking-detail-${record.id}`}
-                      onClick={() => setExpandedId(expanded ? null : record.id)}
-                      className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                    >
-                      {expanded ? 'Hide details' : 'View full details'}
-                      <ChevronIcon open={expanded} />
-                    </button>
-                  </div>
-                </div>
+function RecordReference({ record }: { record: TrackingNode }) {
+  const po = record.purchaseOrders[0];
+  return <div className="po-tracking-reference min-w-0 [overflow-wrap:anywhere]"><p title={po?.poNumber || record.id} className={`font-mono text-xs ${po ? 'font-semibold text-emerald-800' : 'text-slate-600'}`}>{po?.poNumber || record.id}</p>{!po && <p className="mt-1 text-xs text-slate-600">PO not yet assigned</p>}</div>;
+}
 
-                {expanded && (
-                  <div id={`tracking-detail-${record.id}`} className="border-t border-slate-200 bg-slate-50/70 px-4 py-5 sm:px-5">
-                    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(300px,0.8fr)]">
+function ViewButton({ record, onOpen }: { record: TrackingNode; onOpen: (id: string) => void }) {
+  return <button type="button" aria-haspopup="dialog" aria-label={'View details for ' + (record.purchaseOrders[0]?.poNumber || record.id)} onClick={() => onOpen(record.id)} className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-emerald-50 focus-visible:outline-2 focus-visible:outline-emerald-700">View details</button>;
+}
+
+function TrackingDetails({ record, onClose }: { record: TrackingNode; onClose: () => void }) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const items = normalizeItems(record.itemsPayload);
+  const po = record.purchaseOrders[0];
+  const receipt = po?.receivingReports[0];
+  const total = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    dialog?.showModal();
+    document.body.style.overflow = 'hidden';
+    return () => { dialog?.close(); document.body.style.overflow = previousOverflow; opener?.focus(); };
+  }, []);
+  return <dialog ref={dialogRef} aria-labelledby="tracking-detail-title" onCancel={event => { event.preventDefault(); onClose(); }} className="po-tracking-dialog fixed inset-y-0 left-auto right-0 m-0 h-dvh max-h-dvh w-full max-w-full overflow-y-auto border-0 bg-white p-0 text-slate-900 shadow-xl backdrop:bg-slate-900/30 [overflow-wrap:anywhere]">
+    <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 sm:px-5"><h2 id="tracking-detail-title" className="text-lg font-semibold">Order details</h2><button autoFocus type="button" onClick={onClose} className="min-h-11 rounded-lg border border-slate-300 px-4 text-sm font-semibold">Close</button></div>
+    <div className="space-y-4 p-4 sm:p-5"><RecordReference record={record} /><h3 className="font-semibold">{summarizeItems(items)}</h3><p className="text-xs text-slate-600">{record.department.code} · {record.department.name}</p><StatusBadge status={record.status} /><WaitingTime record={record} /><PurchasingProgress status={record.status} />
+      <p className="text-xs text-slate-600">Last updated <time dateTime={record.updatedAt}>{formatDate(record.updatedAt)}</time></p>
+      <dl className="grid gap-3 border-t border-slate-100 pt-4 text-sm sm:grid-cols-2"><div><dt className="text-xs text-slate-600">Total units</dt><dd className="font-semibold">{items.reduce((sum, item) => sum + item.quantity, 0)}</dd></div><div><dt className="text-xs text-slate-600">Billed value</dt><dd className="font-semibold">{total > 0 ? formatPeso(total) : 'Not recorded'}</dd></div><div><dt className="text-xs text-slate-600">Receiving condition</dt><dd className="font-semibold">{receipt ? 'Received — ' + receipt.condition : 'Awaiting intake'}</dd></div></dl>
+    </div>
+                  <div className="border-t border-slate-200 bg-slate-50/70 px-4 py-5 sm:px-5">
+                    <div className="grid min-w-0 gap-5">
                       <div className="space-y-5">
                         <div>
                           <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">Transaction details</h3>
@@ -437,12 +485,5 @@ export default function PurchasingTrackingPage() {
                       </div>
                     </div>
                   </div>
-                )}
-              </article>
-            );
-          })}
-        </div>
-      )}
-    </PageShell>
-  );
+  </dialog>;
 }

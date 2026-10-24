@@ -1,7 +1,16 @@
 'use client';
 
+import { actionFeedback, submissionFeedbackError } from '@/components/ui/action-feedback';
+
 import { useEffect, useState } from 'react';
+import { CheckCircle2, CircleDollarSign, ClipboardList, Clock3, Layers3, PackageCheck } from 'lucide-react';
 import { PageShell, StageHeader, ErrorBanner } from '@/components/purchasing/PurchasingUI';
+import '@/components/purchasing/monthly-reports-workspace.css';
+
+function ReportWorkflowBadge({ label, closed }: { label: string; closed: boolean }) {
+  const Icon = closed ? CheckCircle2 : Clock3;
+  return <span className={`purchasing-status max-w-full border text-xs font-semibold ${closed ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-indigo-200 bg-indigo-50 text-indigo-900'}`}><Icon className="size-4 shrink-0" aria-hidden="true" />{label}</span>;
+}
 
 interface ReportRow {
   poNumber: string;
@@ -99,7 +108,9 @@ export default function PurchasingMonthlyReportsPage() {
     setError(null);
     try {
       setReport(await fetchMonthlyReport(selectedMonth));
+      actionFeedback('Monthly report refreshed', `Transaction register for ${selectedMonth} is ready to review.`);
     } catch (loadError: unknown) {
+      submissionFeedbackError(loadError, 'Report refresh failed');
       setReport(null);
       setError(loadError instanceof Error ? loadError.message : 'The report could not be generated.');
     } finally {
@@ -110,7 +121,7 @@ export default function PurchasingMonthlyReportsPage() {
   const csvHref = `/api/po/reports/monthly?month=${encodeURIComponent(selectedMonth)}&format=csv`;
 
   return (
-    <PageShell>
+    <PageShell className="monthly-reports-page">
       <StageHeader
         eyebrow="Purchasing Office · Transaction Transparency"
         title="Monthly purchasing reports"
@@ -121,7 +132,7 @@ export default function PurchasingMonthlyReportsPage() {
       {error && <ErrorBanner>{error}</ErrorBanner>}
 
       <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs">
-        <div className="flex flex-col gap-4 border-b border-slate-200 bg-slate-50/80 p-4 sm:flex-row sm:items-end sm:justify-between sm:p-5">
+        <div className="monthly-reports-toolbar flex flex-col gap-4 border-b border-slate-200 bg-slate-50/80 p-4 sm:flex-row sm:items-end sm:justify-between sm:p-5">
           <div className="w-full sm:max-w-xs">
             <label htmlFor="report-month" className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
               Transaction month
@@ -141,7 +152,7 @@ export default function PurchasingMonthlyReportsPage() {
             />
           </div>
 
-          <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="monthly-reports-actions flex flex-col gap-2 sm:flex-row">
             <button
               type="button"
               onClick={() => {
@@ -166,34 +177,34 @@ export default function PurchasingMonthlyReportsPage() {
           </div>
         </div>
 
-        <div className="px-4 py-3 text-sm leading-6 text-slate-600 sm:px-5">
+        <div className="monthly-reports-guidance px-4 py-3 text-sm leading-6 text-slate-600 sm:px-5">
           The report includes every PO created within the selected Philippine calendar month, including transactions still awaiting financial clearance or delivery.
         </div>
       </section>
 
       {loading && !report ? (
-        <div className="rounded-xl border border-slate-200 bg-white px-6 py-16 text-center text-xs font-semibold text-slate-600">
+        <div className="monthly-reports-empty rounded-xl border border-slate-200 bg-white px-6 py-16 text-center text-xs font-semibold text-slate-600">
           Generating the monthly transaction register…
         </div>
       ) : report ? (
         <>
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="monthly-reports-summary grid grid-cols-2 gap-3 lg:grid-cols-4">
             {[
-              { label: 'Purchase Orders', value: report.summary.transactionCount.toLocaleString(), detail: report.monthLabel },
-              { label: 'Total Units', value: report.summary.totalQuantity.toLocaleString(), detail: 'Across all item lines' },
-              { label: 'Recorded Value', value: formatPeso(report.summary.totalAmount), detail: 'Based on stored unit prices' },
-              { label: 'Received', value: `${report.summary.receivedCount} / ${report.summary.transactionCount}`, detail: 'Transactions with intake record' },
+              { label: 'Purchase Orders', value: report.summary.transactionCount.toLocaleString(), detail: report.monthLabel, Icon: ClipboardList },
+              { label: 'Total Units', value: report.summary.totalQuantity.toLocaleString(), detail: 'Across all item lines', Icon: Layers3 },
+              { label: 'Recorded Value', value: formatPeso(report.summary.totalAmount), detail: 'Based on stored unit prices', Icon: CircleDollarSign },
+              { label: 'Received', value: `${report.summary.receivedCount} / ${report.summary.transactionCount}`, detail: 'Transactions with intake record', Icon: PackageCheck },
             ].map((metric) => (
-              <div key={metric.label} className="min-w-0 rounded-xl border border-slate-200 bg-white p-3.5 shadow-xs sm:p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-600 sm:text-xs sm:tracking-[0.12em]">{metric.label}</p>
-                <p className="mt-2 break-words font-mono text-lg font-semibold tracking-tight text-slate-900 sm:text-xl">{metric.value}</p>
+              <div key={metric.label} className="purchasing-stat">
+                <span className="purchasing-stat-top"><span>{metric.label}</span><span className="purchasing-stat-icon"><metric.Icon className="size-4 shrink-0" aria-hidden="true" /></span></span>
+                <p className="purchasing-stat-value break-words">{metric.value}</p>
                 <p className="mt-1 text-xs text-slate-600">{metric.detail}</p>
               </div>
             ))}
           </div>
 
           <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs">
-            <div className="flex flex-col gap-1 border-b border-slate-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+            <div className="monthly-reports-register-heading flex flex-col gap-1 border-b border-slate-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
               <div>
                 <h2 className="text-base font-semibold text-slate-900">{report.monthLabel} transaction register</h2>
                 <p className="mt-0.5 text-xs text-slate-600">Preview generated {report.generatedAt} PHT</p>
@@ -204,13 +215,13 @@ export default function PurchasingMonthlyReportsPage() {
             </div>
 
             {report.rows.length === 0 ? (
-              <div className="px-6 py-16 text-center">
+              <div className="monthly-reports-empty px-6 py-16 text-center">
                 <p className="text-sm font-semibold text-slate-700">No Purchase Orders were created in this month.</p>
                 <p className="mt-1 text-xs text-slate-600">You can still export an empty register containing the official column headings.</p>
               </div>
             ) : (
               <>
-                <div className="divide-y divide-slate-200 lg:hidden">
+                <div className="monthly-reports-cards divide-y divide-slate-200 lg:hidden">
                   {report.rows.map((row) => (
                     <article key={row.poNumber} className="p-4 sm:p-5">
                       <div className="flex min-w-0 items-start justify-between gap-3">
@@ -218,7 +229,7 @@ export default function PurchasingMonthlyReportsPage() {
                           <p className="break-all font-mono text-sm font-semibold text-emerald-800">{row.poNumber}</p>
                           <p className="mt-1 text-xs text-slate-600">{row.transactionDate}</p>
                         </div>
-                        <span className={`max-w-[45%] break-words rounded-full border px-2 py-1 text-xs font-semibold ${row.receivingStatus.startsWith('Received') ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+                        <span className={`max-w-[45%] break-words rounded-full border px-2 py-1 text-xs font-semibold ${row.receivingStatus.startsWith('Received') ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-indigo-200 bg-indigo-50 text-indigo-900'}`}>
                           {row.receivingStatus}
                         </span>
                       </div>
@@ -248,7 +259,7 @@ export default function PurchasingMonthlyReportsPage() {
                         </div>
                         <div className="min-w-0 text-right">
                           <dt className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-600">Workflow</dt>
-                          <dd className="mt-1 break-words text-xs font-semibold leading-4 text-slate-700">{row.workflowStatus}</dd>
+                          <dd className="mt-1"><ReportWorkflowBadge label={row.workflowStatus} closed={row.receivingStatus.startsWith('Received')} /></dd>
                         </div>
                       </dl>
 
@@ -260,7 +271,7 @@ export default function PurchasingMonthlyReportsPage() {
                   ))}
                 </div>
 
-                <div className="hidden lg:block"><p className="border-b border-slate-200 px-4 py-2 text-xs text-slate-600">Scroll horizontally to see all register columns if needed.</p><div tabIndex={0} role="region" aria-label="Monthly transaction register table" className="overflow-x-auto focus-visible:outline-2 focus-visible:outline-emerald-700">
+                <div className="monthly-reports-table hidden lg:block"><p className="border-b border-slate-200 px-4 py-2 text-xs text-slate-600">Scroll horizontally to see all register columns if needed.</p><div tabIndex={0} role="region" aria-label="Monthly transaction register table" className="overflow-x-auto focus-visible:outline-2 focus-visible:outline-emerald-700">
                 <table className="min-w-[1100px] w-full border-collapse text-left text-sm">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-[0.08em] text-slate-600">
@@ -294,10 +305,10 @@ export default function PurchasingMonthlyReportsPage() {
                           <span className="mt-1 block text-xs text-slate-600">{row.financialStatus}</span>
                         </td>
                         <td className="px-4 py-4">
-                          <span className="inline-block rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600">{row.workflowStatus}</span>
+                          <ReportWorkflowBadge label={row.workflowStatus} closed={row.receivingStatus.startsWith('Received')} />
                         </td>
                         <td className="px-4 py-4">
-                          <span className={`block font-semibold ${row.receivingStatus.startsWith('Received') ? 'text-emerald-700' : 'text-amber-700'}`}>{row.receivingStatus}</span>
+                          <span className={`block font-semibold ${row.receivingStatus.startsWith('Received') ? 'text-emerald-700' : 'text-indigo-900'}`}>{row.receivingStatus}</span>
                           {row.receivedDate && <span className="mt-1 block text-xs text-slate-600">{row.receivedDate}</span>}
                         </td>
                       </tr>

@@ -1,11 +1,17 @@
 // src/app/dashboard/po/new/page.tsx
 'use client';
 
+import { useUnsavedChanges } from '@/components/ui/UnsavedChanges';
+import { SubmissionFeedback } from '@/components/ui/SubmissionFeedback';
+import { describeSubmissionIssue, SubmissionResponseError, type SubmissionIssue } from '@/shared/submission-feedback';
+import { actionFeedback, submissionFeedbackError } from '@/components/ui/action-feedback';
+
 import React, { useState, useEffect, useRef, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Role, PRStatus } from '@prisma/client';
 import { AuthUser } from '@/shared/session';
 import QRCodeSVG from '@/components/ui/QRCodeSVG';
+import PrintQrLabels from '@/components/ui/PrintQrLabels';
 import {
   PageShell,
   StageHeader,
@@ -22,6 +28,7 @@ import {
 } from '@/components/purchasing/PurchasingUI';
 import { deriveItemSummaryTitle } from '@/components/ui/WorkflowUI';
 import { normalizeReportItems } from '@/shared/monthly-report';
+import '@/components/purchasing/po-preparation-workspace.css';
 
 interface ZodSubErrors {
   _errors?: string[];
@@ -38,11 +45,8 @@ interface ApprovedPRQueueNode {
   itemsPayload?: unknown;
   status: PRStatus;
   createdAt: string;
+  auditLogs?: import('@/shared/queue-insights').QueueTiming['auditLogs'];
   department: { code: string; name: string };
-}
-
-function PrintIcon({ className = 'size-4 shrink-0' }: { className?: string }) {
-  return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}><path d="M7 9V4h10v5M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2M7 14h10v6H7z" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 }
 
 function SparkIcon({ className = 'size-4 shrink-0' }: { className?: string }) {
@@ -70,10 +74,22 @@ export default function NewPurchaseOrderPage() {
   const [purchasingQueue, setPurchasingQueue] = useState<ApprovedPRQueueNode[]>([]);
   const [queueLoading, setQueueLoading] = useState<boolean>(true);
 
+  const [submissionIssue, setSubmissionIssue] = useState<SubmissionIssue | null>(null);
   const [runtimeError, setRuntimeError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<ZodFormErrors | null>(null);
   const [transactionSuccess, setTransactionSuccess] = useState<string | null>(null);
   const notificationTargetHandled = useRef(false);
+  const actionsRef = useRef<HTMLDivElement>(null);
+  const guard = useUnsavedChanges(!!poNumber || custodyConfirmed, { enabled: !userLoading && activeUser?.role === Role.Purchasing_Office, blocked: isPending && !!purchaseRequestId });
+
+  useEffect(() => {
+    const bar = actionsRef.current, form = bar?.closest('form');
+    if (!bar || !form) return;
+    const measure = () => form.style.setProperty('--po-action-height', `${bar.getBoundingClientRect().height}px`);
+    const observer = new ResizeObserver(measure);
+    observer.observe(bar); measure();
+    return () => { observer.disconnect(); form.style.removeProperty('--po-action-height'); };
+  }, [userLoading]);
 
   const syncPurchasingQueue = async (userRole: Role) => {
     try {
@@ -126,7 +142,7 @@ export default function NewPurchaseOrderPage() {
 
   const handlePurchaseOrderGeneration = async (e: React.FormEvent) => {
     e.preventDefault();
-    setRuntimeError(null);
+    setRuntimeError(null); setSubmissionIssue(null);
     setValidationErrors(null);
     setTransactionSuccess(null);
 
@@ -143,6 +159,7 @@ export default function NewPurchaseOrderPage() {
     const selectedPR = purchasingQueue.find((node) => node.id === purchaseRequestId);
 
     startTransition(async () => {
+      let committed = false;
       try {
         const response = await fetch('/api/po/create', {
           method: 'POST',
@@ -152,14 +169,17 @@ export default function NewPurchaseOrderPage() {
 
         const result = await response.json();
 
-        if (!response.ok) {
+        if (!response.ok || result.success === false) {
           if (response.status === 422 && result.errors) {
             setValidationErrors(result.errors);
-            throw new Error('Please check the highlighted fields below.');
+            throw new SubmissionResponseError(response.status, 'Please check the highlighted fields below.');
           }
-          throw new Error(result.error || 'A system error occurred while generating the PO.');
+          throw new SubmissionResponseError(response.status, result.error || 'A system error occurred while generating the PO.');
         }
 
+        committed = true;
+        guard.clear();
+        actionFeedback('Purchase Order prepared', `Order ${result.data.poNumber} was sent to Business Office for financial clearance.`);
         setCreatedPoDetails({
           poNumber: result.data.poNumber,
           qrCodeToken: result.data.qrCodeToken,
@@ -167,7 +187,7 @@ export default function NewPurchaseOrderPage() {
           prId: purchaseRequestId,
         });
 
-        setTransactionSuccess(`Purchase Order [${poNumber}] prepared successfully. Dispatched to Business Office for payment modality clearance.`);
+        setTransactionSuccess(`Purchase Order [${poNumber}] saved. Business Office can now record financial clearance.`);
         
         setPurchaseRequestId('');
         setPoNumber('');
@@ -176,14 +196,17 @@ export default function NewPurchaseOrderPage() {
         await syncPurchasingQueue(activeUser.role);
         router.refresh();
       } catch (err: unknown) {
-        setRuntimeError((err as Error).message || 'Something went wrong. Please try again.');
+        setSubmissionIssue({ ...describeSubmissionIssue(err, committed), reference: purchaseRequestId || undefined });
+        if (!committed) submissionFeedbackError(err);
+        else actionFeedback('Saved; refresh needed', 'Your action was recorded. Refresh the workspace to see the latest queue.', 'info');
+        if (!committed) setRuntimeError((err as Error).message || 'Something went wrong. Please try again.');
       }
     });
   };
 
   if (userLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center text-sm text-slate-500 font-sans">
+      <div className="min-h-dvh bg-slate-50 flex items-center justify-center text-sm text-slate-500 font-sans">
         Loading session context…
       </div>
     );
@@ -204,6 +227,7 @@ export default function NewPurchaseOrderPage() {
     id: task.id,
     title: deriveItemSummaryTitle(task.itemsPayload, task.justification),
     subtitle: task.department.code,
+    createdAt: task.createdAt, department: `${task.department.code} · ${task.department.name}`, status: task.status, timing: task,
     dateLabel: new Date(task.createdAt).toLocaleDateString(),
     justificationPreview: task.justification,
   }));
@@ -212,7 +236,7 @@ export default function NewPurchaseOrderPage() {
   const selectedItems = normalizeReportItems(selectedRequest?.itemsPayload);
 
   return (
-    <PageShell>
+    <PageShell className="po-preparation-page">
       <StageHeader
         eyebrow="Step 4-A of 6 · PO Preparation & Tag Generation"
         title="Prepare purchase order"
@@ -220,7 +244,8 @@ export default function NewPurchaseOrderPage() {
         meta={{ label: 'Signed in as', value: activeUser.email }}
       />
 
-      {runtimeError && <ErrorBanner>{runtimeError}</ErrorBanner>}
+      <SubmissionFeedback issue={submissionIssue} />
+      {runtimeError && (!submissionIssue || runtimeError !== submissionIssue.message) && <ErrorBanner>{runtimeError}</ErrorBanner>}
       {transactionSuccess && <SuccessBanner>{transactionSuccess}</SuccessBanner>}
 
       {createdPoDetails && (
@@ -229,7 +254,7 @@ export default function NewPurchaseOrderPage() {
             <div className="w-full min-w-0 space-y-2 text-center sm:flex-1 sm:text-left">
               <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
                 <span className="text-xs font-medium text-emerald-900 bg-emerald-50 px-2.5 py-1 rounded border border-emerald-200">
-                  Official Asset Sticker Tag
+                  Purchase Order QR Reference
                 </span>
                 <span className="text-xs font-medium text-slate-700 bg-slate-50 px-2.5 py-1 rounded border border-slate-200">
                   Dept: {createdPoDetails.departmentCode}
@@ -237,40 +262,35 @@ export default function NewPurchaseOrderPage() {
               </div>
               <h3 className="mt-3 break-words text-2xl font-semibold tracking-tight text-slate-950 [overflow-wrap:anywhere]">{createdPoDetails.poNumber}</h3>
               <p className="text-xs text-slate-600 font-mono break-all max-w-md">
-                Cryptographic Token: <span className="text-slate-800 font-medium">{createdPoDetails.qrCodeToken}</span>
+                PO reference token: <span className="text-slate-800 font-medium">{createdPoDetails.qrCodeToken}</span>
               </p>
               <div className="pt-2">
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-emerald-700"
-              >
-                  <span className="inline-flex items-center gap-1.5">
-                    <PrintIcon className="size-4 shrink-0" />
-                    <span>Print asset tag</span>
-                  </span>
-                </button>
+                <PrintQrLabels labels={[{ reference: createdPoDetails.poNumber, token: createdPoDetails.qrCodeToken, title: 'PURCHASE ORDER', detail: `Department: ${createdPoDetails.departmentCode}. This reference identifies the entire order.` }]}>
+                  Print PO reference
+                </PrintQrLabels>
               </div>
             </div>
             <div className="bg-white p-3.5 rounded-xl shadow-md shrink-0 border border-emerald-400/40 text-center">
               <QRCodeSVG value={createdPoDetails.qrCodeToken} size={130} />
-              <span className="block text-[9px] font-mono font-bold text-slate-700 mt-1.5 uppercase tracking-wider">DMC CPATS STICKER</span>
+              <span className="block text-[9px] font-mono font-bold text-slate-700 mt-1.5 uppercase tracking-wider">DMC CPATS · PURCHASE ORDER</span>
             </div>
           </div>
+          <p className="mt-4 text-sm leading-6 text-slate-600">This QR identifies the whole order. Print it with the delivery paperwork so Receiving can find the PO. Individual equipment labels are registered after inspection and receipt.</p>
         </div>
       )}
 
       <ReviewWorkspace
+        compact
         queueTitle="Approved request queue"
         tasks={queueTasks}
         loading={queueLoading}
         emptyMessage="No approved requests are currently waiting for PO generation."
         selectedId={purchaseRequestId}
-        onSelect={setPurchaseRequestId}
+        onSelect={(id) => guard.request(() => setPurchaseRequestId(id))}
         selectionLabel="Preparing purchase order"
         selectedTaskLabel="Purchase order preparation"
       >
-        <form onSubmit={handlePurchaseOrderGeneration} className="space-y-6 rounded-xl border border-slate-200 bg-white p-4 shadow-xs sm:p-6">
+        <form onSubmit={handlePurchaseOrderGeneration} className="po-preparation-form space-y-6 rounded-xl border border-slate-200 bg-white p-4 shadow-xs sm:p-6">
           <section aria-label="Selected request overview" className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 p-4 sm:p-5">
             <p className="text-xs font-medium text-emerald-800">{purchaseRequestId ? 'Approved request' : 'Start with an approved request'}</p>
             <h2 className="mt-2 break-words text-lg font-semibold leading-7 text-slate-950 [overflow-wrap:anywhere]">{queueTasks.find((task) => task.id === purchaseRequestId)?.title || 'Choose a request from the queue'}</h2>
@@ -286,7 +306,7 @@ export default function NewPurchaseOrderPage() {
             </>}
             {!purchaseRequestId && <p className="mt-2 text-sm leading-6 text-slate-600">The saved request reference and details will appear here. PO preparation sends the request to Business Office for payment clearance.</p>}
           </section>
-          <div>
+          <div className="po-preparation-reference">
             <FieldLabel htmlFor="po-request-reference">Request reference</FieldLabel>
             <input
               type="text"
@@ -347,7 +367,7 @@ export default function NewPurchaseOrderPage() {
             />
           </div>
 
-          <div className="space-y-4 border-t border-slate-200 pt-5">
+          <div ref={actionsRef} className="po-preparation-actions space-y-4 border-t border-slate-200 pt-5">
             <p className="text-sm leading-6 text-slate-600">After preparation, Business Office records the payment method and financial clearance.</p>
             <ActionButton className="w-full sm:w-auto" type="submit" disabled={isPending}>
               {isPending ? 'Preparing PO & Tag...' : 'Prepare PO & asset tag'}

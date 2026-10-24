@@ -4,11 +4,17 @@
 
 'use client';
 
+import { useUnsavedForm } from '@/components/ui/UnsavedChanges';
+import { SubmissionFeedback } from '@/components/ui/SubmissionFeedback';
+import { describeSubmissionIssue, SubmissionResponseError, type SubmissionIssue } from '@/shared/submission-feedback';
+import { actionFeedback, submissionFeedbackError } from '@/components/ui/action-feedback';
+
 import React, { useState, useEffect, useRef, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Role, PRStatus } from '@prisma/client';
 import { AuthUser } from '@/shared/session';
-import { PageShell, StageHeader, Card, ErrorBanner, SuccessBanner, ReviewWorkspace, BusinessEmptySelection, QueueTask } from '@/components/business/BusinessUI';
+import { PageShell, StageHeader, Card, ErrorBanner, SuccessBanner, BusinessEmptySelection, QueueTask } from '@/components/business/BusinessUI';
+import { BusinessEvaluationWorkspace as ReviewWorkspace } from '@/components/business/BusinessEvaluationWorkspace';
 import { BusinessClearanceForm } from '@/components/business/BusinessClearanceForm';
 
 interface ZodSubErrors { _errors?: string[]; }
@@ -25,6 +31,7 @@ interface AwaitingCheckPRNode {
   justification: string;
   status: PRStatus;
   createdAt: string;
+  auditLogs?: import('@/shared/queue-insights').QueueTiming['auditLogs'];
   department: { code: string; name: string };
   purchaseOrders: PurchaseOrderSummary[];
   itemsPayload?: BillingItemNode[] | unknown;
@@ -52,10 +59,12 @@ export default function ReleaseCheckPage() {
   const [ledgerLogged, setLedgerLogged] = useState<boolean>(false);
   const [checkQueue, setCheckQueue] = useState<AwaitingCheckPRNode[]>([]);
   const [queueLoading, setQueueLoading] = useState<boolean>(true);
+  const [submissionIssue, setSubmissionIssue] = useState<SubmissionIssue | null>(null);
   const [systemError, setSystemError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<ZodFormErrors | null>(null);
   const [transactionSuccess, setTransactionSuccess] = useState<string | null>(null);
   const notificationTargetHandled = useRef(false);
+  const guard = useUnsavedForm(poId, { paymentType, checkNumber, billingItems, physicalCheckSigned, ledgerLogged }, { enabled: !userLoading && activeUser?.role === Role.Business_Office && !!poId, blocked: isPending && !!poId });
 
   const syncCheckReleaseQueue = async (userRole: Role) => {
     try {
@@ -92,7 +101,7 @@ export default function ReleaseCheckPage() {
 
   const handleFinancialClearanceSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSystemError(null); setValidationErrors(null); setTransactionSuccess(null);
+    setSystemError(null); setSubmissionIssue(null); setValidationErrors(null); setTransactionSuccess(null);
     if (!activeUser || activeUser.role !== Role.Business_Office) {
       setSystemError('Access denied. Action restricted to Business Office profiles.'); return;
     }
@@ -101,25 +110,32 @@ export default function ReleaseCheckPage() {
     }
 
     startTransition(async () => {
+      let committed = false;
       try {
         const payload = { poId, paymentType, items: billingItems, ...(paymentType === 'CASH_CHECK' ? { checkNumber } : {}) };
         const response = await fetch('/api/po/release-check', {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
         });
         const result = await response.json();
-        if (!response.ok) {
-          if (response.status === 422 && result.errors) { setValidationErrors(result.errors); throw new Error('Please check the highlighted fields below.'); }
-          throw new Error(result.error || 'A transaction exception occurred while recording financial clearance.');
+        if (!response.ok || result.success === false) {
+          if (response.status === 422 && result.errors) { setValidationErrors(result.errors); throw new SubmissionResponseError(response.status, 'Please check the highlighted fields below.'); }
+          throw new SubmissionResponseError(response.status, result.error || 'A transaction exception occurred while recording financial clearance.');
         }
         const successNotice = paymentType === 'CREDIT_TERMS'
           ? `Financial clearance granted under Credit Terms. Total Billed: ₱${calculatedBilledTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.`
           : `Financial clearance authorized. Check [${checkNumber}] assigned. Total Billed: ₱${calculatedBilledTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.`;
+        committed = true;
+        guard.markClean();
+        actionFeedback('Financial clearance recorded', successNotice);
         setTransactionSuccess(successNotice);
         setPoId(''); setPaymentType('CASH_CHECK'); setCheckNumber(''); setBillingItems([]); setPhysicalCheckSigned(false); setLedgerLogged(false);
         await syncCheckReleaseQueue(activeUser.role);
         router.refresh();
       } catch (err: unknown) {
-        setSystemError((err as { message?: string }).message || 'Something went wrong. Please try again.');
+        setSubmissionIssue({ ...describeSubmissionIssue(err, committed), reference: poId || undefined });
+        if (!committed) submissionFeedbackError(err);
+        else actionFeedback('Saved; refresh needed', 'Your action was recorded. Refresh the workspace to see the latest queue.', 'info');
+        if (!committed) setSystemError((err as { message?: string }).message || 'Something went wrong. Please try again.');
       }
     });
   };
@@ -153,7 +169,7 @@ export default function ReleaseCheckPage() {
       .finally(() => setUserLoading(false));
   }, []);
 
-  if (userLoading) return <div className="min-h-[60vh] flex items-center justify-center text-sm font-medium text-slate-500 font-sans">Loading session context…</div>;
+  if (userLoading) return <div className="min-h-[60dvh] flex items-center justify-center text-sm font-medium text-slate-500 font-sans">Loading session context…</div>;
   if (!activeUser || activeUser.role !== Role.Business_Office) {
     return <Card className="max-w-md w-full text-center mx-auto my-12"><h2 className="text-rose-700 font-bold text-sm">Access Restricted</h2><p className="text-slate-500 text-xs mt-2 leading-relaxed">Your account isn’t authorized for financial clearances. Available to the Business Office only.</p></Card>;
   }
@@ -165,7 +181,8 @@ export default function ReleaseCheckPage() {
       id: task.id,
       title: deriveItemSummaryTitle(task.itemsPayload),
       subtitle: task.department?.code ? `${task.department.code} • ${poCode}` : poCode,
-      dateLabel: new Date(task.createdAt).toLocaleDateString(),
+      createdAt: task.createdAt, department: `${task.department.code} · ${task.department.name}`, status: task.status, timing: task,
+    dateLabel: new Date(task.createdAt).toLocaleDateString(),
       justificationPreview: task.justification,
     };
   });
@@ -176,17 +193,17 @@ export default function ReleaseCheckPage() {
   const quantityTotal = billingItems.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
-    <PageShell>
+    <PageShell compact className="business-clearance-page">
       <StageHeader title="Financial clearance"
-        description="Verify supplier billing, choose the payment method, and complete the required release checks."
-        meta={{ label: 'Signed in as', value: activeUser.email || '' }} />
-      {systemError && <ErrorBanner>{systemError}</ErrorBanner>}
+        description="Verify supplier billing, choose the payment method, and complete the required release checks." />
+      <SubmissionFeedback issue={submissionIssue} />
+      {systemError && (!submissionIssue || systemError !== submissionIssue.message) && <ErrorBanner>{systemError}</ErrorBanner>}
       {transactionSuccess && <SuccessBanner>{transactionSuccess}</SuccessBanner>}
       <p className="text-sm leading-6 text-slate-600">Select an order awaiting clearance. Its saved items and quantities appear alongside the billing and payment controls.</p>
 
       <ReviewWorkspace queueTitle="Financial clearance queue" tasks={queueTasks}
         loading={queueLoading} emptyMessage="No pending orders require financial clearance at this time."
-        selectedId={selectedTask?.id || ''} onSelect={handleTaskSelection}
+        selectedId={selectedTask?.id || ''} onSelect={(id) => guard.request(() => handleTaskSelection(id))}
         selectedTaskLabel="Reviewing financial clearance">
         {!selectedTask ? <BusinessEmptySelection kind="order" /> : (
           <BusinessClearanceForm selectedTask={selectedTask} selectedPO={selectedPO} poId={poId}

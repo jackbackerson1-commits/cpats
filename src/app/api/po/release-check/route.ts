@@ -5,6 +5,7 @@ import { prisma } from '@/shared/prisma';
 import { ReleaseCheckSchema } from '@/validation/check.schema';
 import { authorizeRequest } from '@/shared/rbac';
 import { dispatchNotificationForAuditLog } from '@/shared/notifications';
+import { isWorkflowConflict, WORKFLOW_CONFLICT_MESSAGE } from '@/shared/workflow-conflict';
 
 export async function POST(request: NextRequest) {
   try {
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest) {
 
       // Update PO payment modality and clearance flag
       const updatedPO = await tx.purchaseOrder.update({
-        where: { id: poId },
+        where: { id: poId, isCheckIssued: false, updatedAt: targetPO.updatedAt },
         data: { 
           paymentType: paymentType as PaymentType,
           isCheckIssued: true 
@@ -61,7 +62,7 @@ export async function POST(request: NextRequest) {
       // Update Parent PR itemsPayload with verified Billing Statement unit prices
       if (items && items.length > 0) {
         await tx.purchaseRequest.update({
-          where: { id: targetPO.purchaseRequestId },
+          where: { id: targetPO.purchaseRequestId, status: PRStatus.Awaiting_Check_Issuance, updatedAt: parentPR.updatedAt },
           data: { 
             status: PRStatus.Ready_for_Purchase,
             itemsPayload: items
@@ -69,7 +70,7 @@ export async function POST(request: NextRequest) {
         });
       } else {
         await tx.purchaseRequest.update({
-          where: { id: targetPO.purchaseRequestId },
+          where: { id: targetPO.purchaseRequestId, status: PRStatus.Awaiting_Check_Issuance, updatedAt: parentPR.updatedAt },
           data: { status: PRStatus.Ready_for_Purchase }
         });
       }
@@ -103,6 +104,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: transactionResult.record }, { status: 200 });
   } catch (error: unknown) {
+    if (isWorkflowConflict(error)) return NextResponse.json({ success: false, error: WORKFLOW_CONFLICT_MESSAGE }, { status: 409 });
     if (error instanceof Error) {
       switch (error.message) {
         case "PURCHASE_ORDER_NOT_FOUND":
