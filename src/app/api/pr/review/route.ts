@@ -5,6 +5,8 @@ import { prisma } from '@/shared/prisma';
 import { ReviewPRSchema } from '@/validation/review.schema';
 import { authorizeRequest } from '@/shared/rbac';
 import { dispatchNotificationForAuditLog } from '@/shared/notifications';
+import { isWorkflowConflict, WORKFLOW_CONFLICT_MESSAGE } from '@/shared/workflow-conflict';
+import { assertEvidenceReferences, EvidenceError } from '@/shared/evidence';
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,6 +26,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { prId, action, remarks, adminProofFilePath } = validation.data;
+    await assertEvidenceReferences(activeUser, adminProofFilePath);
 
     // 3. ATOMIC STATE MUTATION
     const executionResult = await prisma.$transaction(async (tx) => {
@@ -55,7 +58,7 @@ export async function POST(request: NextRequest) {
 
       // Persist status change and mandatory proof path
       const updatedPR = await tx.purchaseRequest.update({
-        where: { id: prId },
+        where: { id: prId, status: PRStatus.Pending_Admin_Approval, updatedAt: currentPR.updatedAt },
         data: {
           status: newState,
           adminProofFilePath: action === 'APPROVE' && adminProofFilePath ? adminProofFilePath : currentPR.adminProofFilePath
@@ -84,6 +87,8 @@ export async function POST(request: NextRequest) {
     );
 
   } catch (error: unknown) {
+    if (error instanceof EvidenceError) return NextResponse.json({ success: false, error: error.message }, { status: error.status });
+    if (isWorkflowConflict(error)) return NextResponse.json({ success: false, error: WORKFLOW_CONFLICT_MESSAGE }, { status: 409 });
     if (error instanceof Error) {
       switch (error.message) {
         case "TARGET_NOT_FOUND":

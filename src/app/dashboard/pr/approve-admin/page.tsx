@@ -4,11 +4,20 @@
 
 'use client';
 
+import { useUnsavedForm } from '@/components/ui/UnsavedChanges';
+import { SubmissionFeedback } from '@/components/ui/SubmissionFeedback';
+import { describeSubmissionIssue, SubmissionResponseError, type SubmissionIssue } from '@/shared/submission-feedback';
+import { actionFeedback, decisionFeedback, submissionFeedbackError } from '@/components/ui/action-feedback';
+
 import React, { useState, useEffect, useRef, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronDown, ExternalLink, FileText } from 'lucide-react';
+import { CheckCircle2, ExternalLink, FileText } from 'lucide-react';
+import { AdminRecordedDecision, AdminStatusBadge } from '@/components/admin/AdminPortalPresentation';
 import { Role, PRStatus } from '@prisma/client';
 import { AuthUser } from '@/shared/session';
+import AdminRequestPanels, { AdminPendingReviews } from '@/components/admin/AdminRequestPanels';
+import { WaitingTime } from '@/components/ui/QueueFilters';
+import { AdminDecisionContext } from '@/components/admin/AdminDecisionContext';
 import {
   PageShell,
   StageHeader,
@@ -47,6 +56,8 @@ interface AuditLogNode {
   previousState: PRStatus | null;
   newState: PRStatus;
   remarks: string | null;
+  businessNecessityVerified?: boolean | null;
+  businessBudgetAvailable?: boolean | null;
   actor: { email: string; role: Role };
 }
 
@@ -123,6 +134,7 @@ export default function AdminOfficeApprovalPage() {
   const [isOption1Enabled, setIsOption1Enabled] = useState<boolean>(false);
   const [option1ProofFilePath, setOption1ProofFilePath] = useState<string>('');
   const [attachedFileName, setAttachedFileName] = useState<string | null>(null);
+  const [proofUploading, setProofUploading] = useState(false);
 
   // Mandatory Signatory Verification Checkboxes
   const [checkedPR, setCheckedPR] = useState<boolean>(false);
@@ -141,11 +153,17 @@ export default function AdminOfficeApprovalPage() {
   >('ALL');
 
   // Status Responses
+  const [submissionIssue, setSubmissionIssue] = useState<SubmissionIssue | null>(null);
   const [systemError, setSystemError] = useState<string | null>(null);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<ZodFormErrors | null>(null);
-  const [successStatus, setSuccessStatus] = useState<string | null>(null);
+  const [successStatus, setSuccessStatus] = useState<{
+    message: string;
+    action: 'APPROVE' | 'RETURN_FOR_CORRECTION' | 'DECLINE' | '';
+  } | null>(null);
   const notificationTargetHandled = useRef(false);
+  const [notificationEventTarget, setNotificationEventTarget] = useState<{ prId: string; eventId?: string } | null>(null);
+  const guard = useUnsavedForm(primarySegment + prId, { action, remarks, isOption1Enabled, option1ProofFilePath, checkedPR, checkedPOAuth, checkedPurchaseAuth }, { enabled: !userLoading && activeUser?.role === Role.Admin_Office && primarySegment === 'ACTION_REQUIRED' && !!prId, blocked: (isPending || proofUploading) && !!prId });
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -207,17 +225,20 @@ export default function AdminOfficeApprovalPage() {
 
       if (!notificationTargetHandled.current) {
         const targetId = new URLSearchParams(window.location.search).get('prId');
+        const targetEventId = new URLSearchParams(window.location.search).get('auditLogId');
         if (targetId) {
           const activeTarget = adminTasks.find((item) => item.id === targetId && item.status === PRStatus.Pending_Admin_Approval);
           const historicalTarget = historyTasks.find((item) => item.id === targetId);
           if (activeTarget) {
             setPrimarySegment('ACTION_REQUIRED');
             setPrId(activeTarget.id);
+            setNotificationEventTarget({ prId: activeTarget.id, eventId: activeTarget.auditLogs?.find(log => log.id === targetEventId)?.id });
             notificationTargetHandled.current = true;
           } else if (historicalTarget) {
             setPrimarySegment('DECISION_HISTORY');
             setHistorySubFilter('ALL');
             setPrId(historicalTarget.id);
+            setNotificationEventTarget({ prId: historicalTarget.id, eventId: historicalTarget.auditLogs?.find(log => log.id === targetEventId)?.id });
             notificationTargetHandled.current = true;
           } else if (historyResult.status === 'rejected') {
             setPrimarySegment('DECISION_HISTORY');
@@ -241,7 +262,8 @@ export default function AdminOfficeApprovalPage() {
     const file = e.target.files?.[0];
 
     if (file) {
-      setAttachedFileName(file.name);
+      setSystemError(null); setSubmissionIssue(null);
+      setProofUploading(true);
 
       const formData = new FormData();
       formData.append('file', file);
@@ -254,18 +276,19 @@ export default function AdminOfficeApprovalPage() {
 
         const data = await res.json();
 
-        if (res.ok && data.url) {
-          setOption1ProofFilePath(data.url);
-        }
+        if (!res.ok || !data.success || !data.url) throw new Error(data.error || 'The proof file could not be uploaded.');
+        setOption1ProofFilePath(data.url);
+        setAttachedFileName(file.name);
       } catch (err) {
         console.error('Upload failed:', err);
-      }
+        setSystemError(err instanceof Error ? err.message : 'The proof file could not be uploaded.');
+      } finally { setProofUploading(false); }
     }
   };
 
   const handleAdminApproval = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSystemError(null);
+    setSystemError(null); setSubmissionIssue(null);
     setFieldErrors(null);
     setSuccessStatus(null);
 
@@ -328,6 +351,7 @@ export default function AdminOfficeApprovalPage() {
     }
 
     startTransition(async () => {
+      let committed = false;
       try {
         const payload = {
           prId,
@@ -348,24 +372,25 @@ export default function AdminOfficeApprovalPage() {
 
         const result = await response.json();
 
-        if (!response.ok) {
+        if (!response.ok || result.success === false) {
           if (response.status === 422 && result.errors) {
             setFieldErrors(result.errors);
-            throw new Error('Please review the highlighted fields below.');
+            throw new SubmissionResponseError(response.status, 'Please review the highlighted fields below.');
           }
 
-          throw new Error(
+          throw new SubmissionResponseError(response.status,
             result.error ||
-              'The remote execution node rolled back the database transaction.',
+              'The server could not confirm this submission.',
           );
         }
 
-        setSuccessStatus(
-          `Executive order finalized. Request [${prId.substring(
-            0,
-            8,
-          )}...] transitioned to: ${action}.`,
-        );
+        committed = true;
+        guard.markClean();
+        if (action) decisionFeedback(action, prId, 'Admin');
+        setSuccessStatus({
+          action,
+          message: action === 'APPROVE' ? 'Approval saved. The request is ready for Purchasing Office to prepare its purchase order.' : action === 'RETURN_FOR_CORRECTION' ? 'Return saved. The Requesting Office can revise the same request using your feedback.' : 'Decline saved. This request is final; its department can reuse the details in a new request.',
+        });
 
         setPrId('');
         setAction('');
@@ -380,7 +405,10 @@ export default function AdminOfficeApprovalPage() {
         await syncAdminWorkspaceQueue(activeUser.role);
         router.refresh();
       } catch (err: unknown) {
-        setSystemError(
+        setSubmissionIssue({ ...describeSubmissionIssue(err, committed), reference: prId || undefined });
+        if (!committed) submissionFeedbackError(err);
+        else actionFeedback('Saved; refresh needed', 'Your action was recorded. Refresh the workspace to see the latest queue.', 'info');
+        if (!committed) setSystemError(
           (err instanceof Error ? err.message : null) ||
             'A network or server disconnect interrupted ledger propagation.',
         );
@@ -390,7 +418,7 @@ export default function AdminOfficeApprovalPage() {
 
   if (userLoading) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center text-sm font-medium text-slate-500 font-sans">
+      <div className="min-h-[60dvh] flex items-center justify-center text-sm font-medium text-slate-500 font-sans">
         Loading executive session context…
       </div>
     );
@@ -424,19 +452,22 @@ export default function AdminOfficeApprovalPage() {
       ? actionRequiredQueue
       : filteredHistoryQueue;
 
-  const queueTasks: QueueTask[] = displayedQueue.map((task) => ({
+  const queueTasks: (QueueTask & { decisionStatus?: PRStatus; officeCode: string; dateTime: string })[] = displayedQueue.map((task) => ({
     id: task.id,
     title: deriveItemSummaryTitle(task.itemsPayload),
     subtitle: primarySegment === 'DECISION_HISTORY'
       ? `${task.department?.code || 'OVPA'} • ${latestAdminDecision(task)?.newState === PRStatus.Approved_Awaiting_PO ? 'APPROVED' : latestAdminDecision(task)?.newState === PRStatus.Returned_for_Correction ? 'RETURNED' : 'DECLINED'}`
       : task.isDirectPoBypass ? `${task.department?.code || 'OVPA'} • PRE-APPROVED` : task.department?.code || 'OVPA',
-    dateLabel: new Date(task.createdAt).toLocaleDateString(),
+    createdAt: task.createdAt, department: `${task.department.code} · ${task.department.name}`, status: task.status, timing: task,
+    officeCode: task.department.code,
+    decisionStatus: primarySegment === 'DECISION_HISTORY' ? latestAdminDecision(task)?.newState : undefined,
+    dateTime: primarySegment === 'DECISION_HISTORY' ? latestAdminDecision(task)?.createdAt || task.createdAt : task.createdAt,
+    dateLabel: new Date(primarySegment === 'DECISION_HISTORY' ? latestAdminDecision(task)?.createdAt || task.createdAt : task.createdAt).toLocaleDateString(),
     justificationPreview: task.justification,
   }));
 
   const selectedPR = (primarySegment === 'DECISION_HISTORY' ? adminHistory : adminQueue).find((req) => req.id === prId);
   const isDecisionHistoryRecord = primarySegment === 'DECISION_HISTORY';
-  const adminDecisionLog = selectedPR ? latestAdminDecision(selectedPR) : undefined;
 
   const itemsList: ItemPayloadNode[] =
     selectedPR && Array.isArray(selectedPR.itemsPayload)
@@ -464,102 +495,90 @@ export default function AdminOfficeApprovalPage() {
           ? 'Decline requisition'
           : 'No decision selected';
 
+  const selectedActionDescription = action === 'APPROVE' ? 'Approval authorizes the Purchasing Office to prepare the purchase order.' : action === 'RETURN_FOR_CORRECTION' ? 'The request is returned with your feedback through the existing correction process.' : action === 'DECLINE' ? 'The request will be declined. Your reason remains in its decision history.' : 'Choose an outcome above before recording the Admin Office decision.';
+
+  const changeView = (segment: 'ACTION_REQUIRED' | 'DECISION_HISTORY', filter: typeof historySubFilter = 'ALL', selected = '') => guard.request(() => {
+    setPrimarySegment(segment); setHistorySubFilter(filter); setPrId(selected); setAction(''); setRemarks('');
+    setCheckedPR(false); setCheckedPOAuth(false); setCheckedPurchaseAuth(false);
+    setSystemError(null); setSubmissionIssue(null); setFieldErrors(null); setNotificationEventTarget(null);
+  });
+  const decisions = decisionHistoryQueue.map(record => ({ record, decision: latestAdminDecision(record) }))
+    .sort((a, b) => new Date(b.decision?.createdAt || 0).getTime() - new Date(a.decision?.createdAt || 0).getTime());
+  const historyCounts = [PRStatus.Approved_Awaiting_PO, PRStatus.Returned_for_Correction, PRStatus.Declined]
+    .map(status => decisions.filter(({ decision }) => decision?.newState === status).length);
+  const historyFilters = <div role="group" aria-label="Admin decision history filters" className="admin-history-filters">
+    {([['ALL', 'All', decisionHistoryQueue.length], ['APPROVED', 'Approved', historyCounts[0]], ['RETURNED', 'Returned', historyCounts[1]], ['DECLINED', 'Declined', historyCounts[2]]] as const).map(([key, label, count]) =>
+      <button key={key} type="button" aria-pressed={historySubFilter === key} onClick={() => guard.request(() => { setHistorySubFilter(key); setPrId(''); })}>{label} {count}</button>)}
+  </div>;
+  const caughtUp = !queueLoading && !systemError && primarySegment === 'ACTION_REQUIRED' && actionRequiredQueue.length === 0 && !selectedPR;
+
   return (
     <PageShell>
-      <StageHeader title="Executive requisition review"
-        description="Review procurement evidence, confirm the required authorizations, and record the Admin Office decision."
-        meta={{ label: 'Signed in as', value: activeUser.email }} />
-      {systemError && <ErrorBanner>{systemError}</ErrorBanner>}
+      <StageHeader title="Executive requisition review" />
+      <SubmissionFeedback issue={submissionIssue} />
+      {systemError && (!submissionIssue || systemError !== submissionIssue.message) && <ErrorBanner>{systemError}</ErrorBanner>}
       {primarySegment === 'DECISION_HISTORY' && historyError && <ErrorBanner>{historyError}</ErrorBanner>}
-      {successStatus && <SuccessBanner>{successStatus}</SuccessBanner>}
+      {successStatus && <SuccessBanner tone={successStatus.action === 'DECLINE' ? 'decline' : successStatus.action === 'RETURN_FOR_CORRECTION' ? 'warning' : 'success'}>{successStatus.message}</SuccessBanner>}
 
-      <div className="space-y-3">
-        <div role="group" aria-label="Executive queue view" className="flex flex-wrap gap-2">
-          {([
-            ['ACTION_REQUIRED', 'Action required', actionRequiredQueue.length],
-            ['DECISION_HISTORY', 'Decision history', decisionHistoryQueue.length],
-          ] as const).map(([key, label, count]) => <button key={key} type="button" aria-pressed={primarySegment === key}
-            onClick={() => {
-              setPrimarySegment(key); setPrId(''); setAction(''); setRemarks('');
-              setCheckedPR(false); setCheckedPOAuth(false); setCheckedPurchaseAuth(false);
-              setSystemError(null); setFieldErrors(null);
-            }}
-            className={`inline-flex min-h-11 items-center gap-2 rounded-lg border px-4 py-3 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 ${primarySegment === key ? 'border-emerald-800 bg-emerald-800 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>
-            {label}<span className={`rounded-md px-2 py-0.5 text-xs tabular-nums ${primarySegment === key ? 'bg-white/15' : 'bg-slate-100'}`}>{queueLoading ? '…' : count}</span>
-          </button>)}
-        </div>
-        {primarySegment === 'DECISION_HISTORY' && <div role="group" aria-label="Admin decision history filters" className="flex flex-wrap gap-2">
-          {([
-            ['ALL', 'All', decisionHistoryQueue.length],
-            ['APPROVED', 'Approved', decisionHistoryQueue.filter((item) => latestAdminDecision(item)?.newState === PRStatus.Approved_Awaiting_PO).length],
-            ['RETURNED', 'Returned', decisionHistoryQueue.filter((item) => latestAdminDecision(item)?.newState === PRStatus.Returned_for_Correction).length],
-            ['DECLINED', 'Declined', decisionHistoryQueue.filter((item) => latestAdminDecision(item)?.newState === PRStatus.Declined).length],
-          ] as const).map(([key, label, count]) => <button key={key} type="button" aria-pressed={historySubFilter === key}
-            onClick={() => { setHistorySubFilter(key); setPrId(''); }}
-            className={`min-h-11 rounded-lg border px-3 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 ${historySubFilter === key ? 'border-slate-800 bg-slate-800 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>{label} {count}</button>)}
-        </div>}
-        <p className="text-sm leading-6 text-slate-600">{primarySegment === 'DECISION_HISTORY' ? 'Review the recorded Admin decision alongside each request’s current status. History is read only.' : 'Select a request to inspect its saved details, supporting evidence, and available decision controls.'}</p>
+      <div role="group" aria-label="Executive queue view" className="admin-view-segments">
+        {([['ACTION_REQUIRED', 'Action required', actionRequiredQueue.length], ['DECISION_HISTORY', 'Decision history', decisionHistoryQueue.length]] as const).map(([key, label, count]) =>
+          <button key={key} type="button" aria-pressed={primarySegment === key} onClick={() => changeView(key, historySubFilter)}>{label} <span>({queueLoading ? '…' : count})</span></button>)}
       </div>
-
-      <ReviewWorkspace queueTitle={primarySegment === 'ACTION_REQUIRED' ? 'Executive review queue' : 'Decision history'} tasks={queueTasks} loading={queueLoading}
+      {caughtUp ? <section className="admin-caught-up" aria-labelledby="admin-caught-up-title">
+        <div className="admin-caught-up-message"><span className="admin-caught-up-icon"><CheckCircle2 className="size-8" aria-hidden="true" /></span><h2 id="admin-caught-up-title" className="mt-4 text-xl font-semibold">All caught up</h2><p className="mt-2 text-sm text-slate-600">No requests are awaiting Admin Office review</p></div>
+        <div className="admin-recent-decisions"><div className="flex flex-wrap items-center justify-between gap-3"><h3 className="text-sm font-semibold">Recent decisions</h3><button type="button" onClick={() => changeView('DECISION_HISTORY')}>View decision history →</button></div>
+          {historyError ? <p role="alert" className="mt-3 text-sm text-rose-800">{historyError}</p> : decisions.length ? <ul>{decisions.slice(0, 3).map(({ record, decision }) => <li key={record.id}><button type="button" onClick={() => changeView('DECISION_HISTORY', 'ALL', record.id)} className="admin-recent-row"><span className="min-w-0 flex-1"><span className="line-clamp-2 text-sm font-semibold">{deriveItemSummaryTitle(record.itemsPayload)}</span><span className="mt-1 block text-xs text-slate-600">{record.department.code} · {decision && new Date(decision.createdAt).toLocaleDateString()}</span></span>{decision && <AdminStatusBadge status={decision.newState} label={decision.newState === PRStatus.Approved_Awaiting_PO ? 'Approved' : undefined} />}</button></li>)}</ul> : <p className="mt-4 text-sm text-slate-600">No Admin decisions have been recorded yet.</p>}
+        </div>
+      </section> :
+      <ReviewWorkspace toolbar={primarySegment === 'DECISION_HISTORY' ? historyFilters : undefined} queueTitle={primarySegment === 'ACTION_REQUIRED' ? 'Executive review queue' : 'Decision history'} tasks={queueTasks} loading={queueLoading}
+        viewKey={primarySegment + ':' + historySubFilter}
         emptyMessage={primarySegment === 'ACTION_REQUIRED' ? 'No requests are awaiting Admin Office review.' : 'No matching Admin Office decisions were found.'}
         selectionLabel={primarySegment === 'DECISION_HISTORY' ? 'Viewing' : 'In review'}
         selectedTaskLabel={primarySegment === 'DECISION_HISTORY' ? 'Viewing past Admin decision' : 'Reviewing selected transaction'}
         selectedId={prId}
-        onSelect={(id) => {
+        onSelect={(id) => guard.request(() => {
+          setNotificationEventTarget(null);
           setPrId(id); setAction(''); setRemarks(''); setCheckedPR(false); setCheckedPOAuth(false); setCheckedPurchaseAuth(false);
-          setFieldErrors(null); setSystemError(null);
+          setFieldErrors(null); setSystemError(null); setSubmissionIssue(null);
           const pr = adminQueue.find((item) => item.id === id);
           if (pr?.status === PRStatus.Pending_Admin_Approval) {
             setAction('APPROVE'); setCheckedPR(true); setCheckedPOAuth(true); setCheckedPurchaseAuth(true);
           }
           setIsOption1Enabled(false); setOption1ProofFilePath(''); setAttachedFileName(null);
-        }}>
-        {!selectedPR ? <AdminEmptySelection kind="request" /> : <form onSubmit={handleAdminApproval} className="min-w-0 space-y-5 sm:space-y-6" aria-busy={isPending}>
+        })}>
+        {!selectedPR ? <AdminEmptySelection kind="request" /> : <form onSubmit={handleAdminApproval} className="admin-review-form min-w-0 space-y-4" aria-busy={isPending}>
           <input type="text" required readOnly tabIndex={-1} aria-label="Selected requisition reference" className="sr-only" value={prId} />
           {fieldErrors?.prId?._errors && <FieldError>{fieldErrors.prId._errors[0]}</FieldError>}
 
-          <section aria-label="Request overview" className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-xs sm:p-6">
-            <div className="flex min-w-0 flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0">
-                <p className="text-xs font-medium text-emerald-800">{isDecisionHistoryRecord ? 'Past Admin decision' : 'Request under review'}</p>
-                <h2 className="mt-2 break-words text-xl font-semibold leading-7 text-slate-950 [overflow-wrap:anywhere]">{deriveItemSummaryTitle(selectedPR.itemsPayload)}</h2>
-                <p className="mt-2 break-all font-mono text-xs leading-5 text-slate-600">PR {selectedPR.id}</p>
-              </div>
-              <span className="w-fit shrink-0 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-900">{selectedPR.isDirectPoBypass ? 'Executive pre-approved' : 'Standard review'}</span>
-            </div>
-            <dl className="mt-5 grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {!isDecisionHistoryRecord && <AdminFinalAction title={selectedActionLabel} description={selectedActionDescription}>
+            <DecisionButtonGroup value={action} onChange={setAction} returnLabel="Return" />
+            {fieldErrors?.action?._errors && <FieldError>{fieldErrors.action._errors[0]}</FieldError>}
+            <ActionButton type="submit" aria-describedby="admin-decision-explanation" disabled={isPending}>{isPending ? 'Saving decision…' : 'Submit decision'}</ActionButton>
+          </AdminFinalAction>}
+
+          <AdminRequestPanels key={primarySegment + selectedPR.id + (notificationEventTarget?.prId === selectedPR.id ? notificationEventTarget.eventId || '' : '')}
+            requestId={selectedPR.id} title={deriveItemSummaryTitle(selectedPR.itemsPayload)} status={selectedPR.status} departmentCode={selectedPR.department.code} readOnly={isDecisionHistoryRecord} logs={selectedPR.auditLogs}
+            notificationEventId={notificationEventTarget?.prId === selectedPR.id ? notificationEventTarget.eventId : undefined}
+            overview={<>
+          {isDecisionHistoryRecord && <AdminRecordedDecision decision={latestAdminDecision(selectedPR)} />}
+          <section aria-label="Request overview" className="admin-surface min-w-0 rounded-lg border border-slate-200 bg-white">
+            <h2 className="text-base font-semibold text-slate-950">Request overview</h2>
+            <p className="mt-2 text-xs text-emerald-800">{selectedPR.isDirectPoBypass ? 'Executive pre-approved' : 'Standard review'}</p>
+            <dl className="admin-overview-grid mt-3 grid min-w-0 gap-4">
               <div className="min-w-0"><dt className="text-xs text-slate-600">Originating office</dt><dd className="mt-1 break-words text-sm font-medium leading-6 text-slate-900 [overflow-wrap:anywhere]">{selectedPR.department.name} ({selectedPR.department.code})</dd></div>
               <div><dt className="text-xs text-slate-600">Submitted</dt><dd className="mt-1 text-sm font-medium leading-6 text-slate-900">{new Date(selectedPR.createdAt).toLocaleDateString()}</dd></div>
               <div><dt className="text-xs text-slate-600">Request scope</dt><dd className="mt-1 text-sm font-medium leading-6 text-slate-900">{itemsList.length} line item{itemsList.length === 1 ? '' : 's'}</dd></div>
-              <div className="min-w-0"><dt className="text-xs text-slate-600">Estimated value</dt><dd className="mt-1 break-words text-sm font-semibold leading-6 tabular-nums text-slate-900 [overflow-wrap:anywhere]">{hasPrices ? formatPeso(calculatedGrandTotal) : 'Not provided'}</dd></div>
+              <div className="min-w-0"><dt className="text-xs text-slate-600">Estimated value</dt><dd className={`mt-1 break-words text-sm leading-6 tabular-nums [overflow-wrap:anywhere] ${hasPrices ? 'font-semibold text-slate-900' : 'text-slate-500'}`}>{hasPrices ? formatPeso(calculatedGrandTotal) : 'Not provided'}</dd></div>
+              <div><dt className="text-xs text-slate-600">Time in current stage</dt><dd><WaitingTime record={selectedPR} /></dd></div>
             </dl>
           </section>
 
-          {isDecisionHistoryRecord && <section role="status" className="rounded-xl border border-slate-200 bg-slate-100 p-4 text-sm leading-6 text-slate-700 sm:p-6">
-            <h2 className="font-semibold text-slate-950">Admin decision history · Read only</h2>
-            <p className="mt-2">Recorded Admin decision: <strong>{adminDecisionLog?.newState === PRStatus.Approved_Awaiting_PO ? 'Approved' : adminDecisionLog?.newState === PRStatus.Returned_for_Correction ? 'Returned for correction' : 'Declined'}</strong>.</p>
-            <p className="mt-1">Current request status: <strong>{selectedPR.status.replace(/_/g, ' ')}</strong>.</p>
-            <p className="mt-2">Recorded details and decision notes remain available for reference. This view does not offer decision actions.</p>
-          </section>}
-          {isDecisionHistoryRecord && adminDecisionLog && <section className="min-w-0 rounded-xl border border-amber-200 bg-amber-50 p-4 sm:p-6">
-            <h2 className="text-base font-semibold text-amber-950">Recorded Admin Office decision</h2>
-            <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-amber-950 [overflow-wrap:anywhere]">{adminDecisionLog.remarks || 'No decision note was recorded.'}</p>
-            <p className="mt-4 break-words border-t border-amber-200 pt-3 text-xs leading-5 text-amber-900 [overflow-wrap:anywhere]">{adminDecisionLog.actor.email} · {new Date(adminDecisionLog.createdAt).toLocaleString()}</p>
-          </section>}
-
-          {selectedPR.adminProofFilePath && <AdminSection title="Supporting approval document" description="The saved executive approval evidence attached to this request.">
-            <a href={selectedPR.adminProofFilePath} target="_blank" rel="noreferrer" className="inline-flex min-h-11 flex-wrap items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900 hover:bg-emerald-100"><ExternalLink className="size-4 shrink-0" aria-hidden="true" />Open source document<span className="text-xs font-normal">(opens in a new tab)</span></a>
-            {isImageFile(selectedPR.adminProofFilePath) ? <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-2"><img src={selectedPR.adminProofFilePath} alt="Pre-Approved Executive Letter" className="mx-auto max-h-[420px] w-auto max-w-full rounded-md object-contain" /></div> : <p className="mt-4 flex items-center gap-2 text-sm text-slate-700"><FileText className="size-5 shrink-0" aria-hidden="true" />Attached executive approval document</p>}
-            <p className="mt-3 break-all font-mono text-xs leading-5 text-slate-600">{selectedPR.adminProofFilePath}</p>
-          </AdminSection>}
-
           <AdminSection title="Reason for the request" description="The justification saved by the Requesting Office."><p className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-700 [overflow-wrap:anywhere]">{selectedPR.justification}</p></AdminSection>
           <AdminSection title="Requested items" description="Review the saved item details and quantities before recording a decision.">
-            {itemsList.length > 0 ? <ol className="divide-y divide-slate-200">{itemsList.map((item, idx) => {
+            {itemsList.length > 0 ? <ol className="space-y-3">{itemsList.map((item, idx) => {
               const unitPrice = item.unitPrice || 0;
               const subtotal = unitPrice * item.quantity;
-              return <li key={idx} className="grid min-w-0 gap-3 py-4 first:pt-0 last:pb-0 lg:grid-cols-[minmax(0,1fr)_minmax(180px,36%)]">
+              return <li key={idx} className="admin-item-row grid min-w-0 gap-3 rounded-lg border border-slate-200 p-3">
                 <div className="min-w-0"><p className="text-xs text-slate-600">Item {idx + 1}</p><p className="mt-1 whitespace-pre-wrap break-words text-sm font-medium leading-6 text-slate-900 [overflow-wrap:anywhere]">{item.itemName}</p></div>
                 <dl className={`grid min-w-0 gap-3 ${hasPrices ? 'sm:grid-cols-3' : ''}`}>
                   <div><dt className="text-xs text-slate-600">Quantity</dt><dd className="mt-1 text-sm font-semibold tabular-nums text-slate-900">{item.quantity}</dd></div>
@@ -567,20 +586,23 @@ export default function AdminOfficeApprovalPage() {
                 </dl>
               </li>;
             })}</ol> : <p className="text-sm leading-6 text-slate-600">No itemized schedule is available for this requisition.</p>}
-            {hasPrices && <p className="mt-5 break-words border-t border-slate-200 pt-4 text-sm font-semibold tabular-nums text-emerald-900 [overflow-wrap:anywhere]">Estimated total: {formatPeso(calculatedGrandTotal)}</p>}
+            {hasPrices && <p className="mt-4 break-words border-t border-slate-200 pt-4 text-sm font-semibold tabular-nums text-emerald-900 [overflow-wrap:anywhere]">Estimated total: {formatPeso(calculatedGrandTotal)}</p>}
           </AdminSection>
 
-          {selectedPR.auditLogs && selectedPR.auditLogs.length > 0 && <details className="group min-w-0 rounded-xl border border-slate-200 bg-white">
-            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 p-4 text-sm font-semibold text-slate-800 sm:px-6">Workflow history<ChevronDown className="size-4 shrink-0 transition group-open:rotate-180" aria-hidden="true" /></summary>
-            <ol className="space-y-4 border-t border-slate-200 p-4 sm:p-6">{selectedPR.auditLogs.map((log, idx) => <li key={log.id || idx} className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 p-4">
-              <p className="break-words text-sm font-semibold text-slate-900">{log.newState.replace(/_/g, ' ')}</p>
-              {log.remarks && <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700 [overflow-wrap:anywhere]">{log.remarks}</p>}
-              <p className="mt-3 break-words text-xs leading-5 text-slate-600 [overflow-wrap:anywhere]">{log.actor.email} · {new Date(log.createdAt).toLocaleString()}</p>
-            </li>)}</ol>
-          </details>}
+            </>}
+            reviews={<>
+              {isDecisionHistoryRecord ? <AdminDecisionContext status={selectedPR.status} logs={selectedPR.auditLogs} /> : <AdminPendingReviews logs={selectedPR.auditLogs || []} />}
+          {selectedPR.adminProofFilePath && <AdminSection title="Supporting approval document" description="The saved executive approval evidence attached to this request.">
+            <a href={selectedPR.adminProofFilePath} target="_blank" rel="noreferrer" className="inline-flex min-h-11 flex-wrap items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900 hover:bg-emerald-100"><ExternalLink className="size-4 shrink-0" aria-hidden="true" />Open source document<span className="text-xs font-normal">(opens in a new tab)</span></a>
+            {isImageFile(selectedPR.adminProofFilePath) ? <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-2"><img src={selectedPR.adminProofFilePath} alt="Pre-Approved Executive Letter" className="mx-auto max-h-[40dvh] w-auto max-w-full rounded-md object-contain" /></div> : <p className="mt-4 flex items-center gap-2 text-sm text-slate-700"><FileText className="size-5 shrink-0" aria-hidden="true" />Attached executive approval document</p>}
+            <p className="mt-3 break-all font-mono text-xs leading-5 text-slate-600">{selectedPR.adminProofFilePath}</p>
+          </AdminSection>}
 
+              {!selectedPR.adminProofFilePath && <Card><p className="text-sm text-slate-600">No supporting approval document is saved for this request.</p></Card>}
+            </>} />
+          <div id="admin-decision-controls" tabIndex={-1} className="min-w-0 space-y-4 focus:outline-none">
           {!isDecisionHistoryRecord && <>
-            <AdminSection title="Admin Office decision" description="Choose the outcome to record for this request."><DecisionButtonGroup value={action} onChange={setAction} />{fieldErrors?.action?._errors && <FieldError>{fieldErrors.action._errors[0]}</FieldError>}</AdminSection>
+
             {action === 'APPROVE' && <AdminSection title="Required executive authorizations" description="All three authorizations are required to approve this requisition.">
               <p className={`mb-4 text-sm font-medium ${authorizationCount === 3 ? 'text-emerald-800' : 'text-slate-700'}`}>{authorizationCount} of 3 verified</p>
               <div className="space-y-3">
@@ -588,7 +610,7 @@ export default function AdminOfficeApprovalPage() {
                 <CheckItem id="chk-po" checked={checkedPOAuth} onChange={setCheckedPOAuth} label="Authorization to Prepare Purchase Order" description="Granting Purchasing Office clearance to bind vendor specifications and generate hard copy PO." />
                 <CheckItem id="chk-item" checked={checkedPurchaseAuth} onChange={setCheckedPurchaseAuth} label="Authorization to Procure Requested Items" description="Authorizing business disbursement and financial check release." />
               </div>
-              <div className="mt-5 border-t border-slate-200 pt-5">
+              <div className="mt-4 border-t border-slate-200 pt-4">
                 <CheckItem id="chk-option1-toggle" checked={isOption1Enabled} onChange={(checked) => { setIsOption1Enabled(checked); if (!checked) { setOption1ProofFilePath(''); setAttachedFileName(null); } }} label="Enable Option 1: Off-Campus Remote Sign-Off" description="Use only when the Head of Office is off-campus and granted remote approval via messaging." />
               </div>
               {isOption1Enabled && <div className="mt-4 min-w-0 rounded-lg border border-slate-200 bg-slate-50 p-4">
@@ -606,12 +628,11 @@ export default function AdminOfficeApprovalPage() {
               <p id="admin-remarks-help" className="mt-2 text-xs leading-5 text-slate-600">{action === 'APPROVE' ? 'Optional. The existing default approval note is used when a full note is not provided.' : 'At least 5 characters. This explanation becomes part of the requisition audit trail.'}</p>
               {fieldErrors?.remarks?._errors && <FieldError id="admin-remarks-error">{fieldErrors.remarks._errors[0]}</FieldError>}
             </AdminSection>}
-            <AdminFinalAction title={selectedActionLabel} description={action === 'APPROVE' ? 'Approval authorizes the Purchasing Office to prepare the purchase order.' : action === 'RETURN_FOR_CORRECTION' ? 'The request is returned with your feedback through the existing correction process.' : action === 'DECLINE' ? 'The request will be declined. Your reason remains in its decision history.' : 'Choose an outcome above before recording the Admin Office decision.'}>
-              <ActionButton type="submit" disabled={isPending}>{isPending ? 'Saving executive decision…' : 'Submit executive decision'}</ActionButton>
-            </AdminFinalAction>
+            <p id="admin-decision-explanation" className="text-xs leading-5 text-slate-600">{selectedActionDescription}</p>
           </>}
+          </div>
         </form>}
-      </ReviewWorkspace>
+      </ReviewWorkspace>}
     </PageShell>
   );
 }

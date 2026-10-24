@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
         const purchasingQueue = await prisma.purchaseRequest.findMany({
           where: { status: PRStatus.Approved_Awaiting_PO },
           orderBy: { createdAt: 'asc' },
-          include: { department: { select: { code: true, name: true } } }
+          include: { department: { select: { code: true, name: true } }, auditLogs: { select: { createdAt: true, previousState: true, newState: true } } }
         });
         return NextResponse.json({ success: true, data: purchasingQueue }, { status: 200 });
 
@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
           orderBy: { createdAt: 'asc' },
           include: {
             purchaseRequest: {
-              include: { department: { select: { code: true, name: true } } }
+              include: { department: { select: { code: true, name: true } }, auditLogs: { select: { createdAt: true, previousState: true, newState: true } } }
             }
           }
         });

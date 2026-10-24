@@ -5,6 +5,8 @@ import { prisma } from '@/shared/prisma';
 import { authorizeRequest } from '@/shared/rbac';
 import { dispatchNotificationForAuditLog } from '@/shared/notifications';
 import { CreatePRSchema } from '@/validation/pr.schema';
+import { assertEvidenceReferences, EvidenceError } from '@/shared/evidence';
+import { isWorkflowConflict, WORKFLOW_CONFLICT_MESSAGE } from '@/shared/workflow-conflict';
 
 const RequestIdSchema = z.string().uuid();
 
@@ -99,7 +101,7 @@ export async function PATCH(request: NextRequest) {
 
     const currentRecord = await prisma.purchaseRequest.findUnique({
       where: { id: parsedId.data },
-      select: { departmentId: true, status: true },
+      select: { departmentId: true, status: true, updatedAt: true },
     });
 
     if (!currentRecord || currentRecord.departmentId !== auth.user.departmentId) {
@@ -117,12 +119,14 @@ export async function PATCH(request: NextRequest) {
     }
 
     const { justification, isDirectPoBypass, adminProofFilePath, items } = validation.data;
+    await assertEvidenceReferences(auth.user, adminProofFilePath);
     const executionResult = await prisma.$transaction(async (tx) => {
       const updateResult = await tx.purchaseRequest.updateMany({
         where: {
           id: parsedId.data,
           departmentId: auth.user.departmentId,
           status: PRStatus.Returned_for_Correction,
+          updatedAt: currentRecord.updatedAt,
         },
         data: {
           justification,
@@ -153,6 +157,8 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: executionResult.record });
   } catch (error: unknown) {
+    if (error instanceof EvidenceError) return NextResponse.json({ success: false, error: error.message }, { status: error.status });
+    if (isWorkflowConflict(error)) return NextResponse.json({ success: false, error: WORKFLOW_CONFLICT_MESSAGE }, { status: 409 });
     if (error instanceof StaleReturnedRequestError) {
       return NextResponse.json(
         { success: false, error: 'This request changed while you were editing it. Refresh the records page to see its current status.' },
