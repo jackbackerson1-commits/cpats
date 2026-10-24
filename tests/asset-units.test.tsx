@@ -11,6 +11,7 @@ import { Role, PRStatus, Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import QRCodeSVG from '../src/components/ui/QRCodeSVG';
 import { assetItemLines, RegisterAssetUnitsSchema, validateAssetSelection } from '../src/shared/asset-units';
+import { AssetRegisterQuery, assetRegisterWhere, assetRegisterOrder } from '../src/shared/asset-register-query';
 import { ASSET_REGISTER_ROLES } from '../src/shared/asset-access';
 
 test('actual QR component decodes PO and three distinct equipment references', async () => {
@@ -62,6 +63,7 @@ function endpointHarness(role: Role, received = true) {
     '@/shared/rbac': { authorizeRequest: async (_request: unknown, allowed: Role | Role[]) => (Array.isArray(allowed) ? allowed : [allowed]).includes(role)
       ? { success: true, user: { role, id: 'receiving-user' } } : { success: false, response: { status: 403, body: { success: false } } } },
     '@/shared/asset-access': { ASSET_REGISTER_ROLES },
+    '@/shared/asset-register-query': { AssetRegisterQuery, assetRegisterWhere, assetRegisterOrder },
     '@/shared/asset-units': { assetItemLines, RegisterAssetUnitsSchema, validateAssetSelection },
   };
   const source = readFileSync('src/app/api/assets/route.ts', 'utf8');

@@ -5,31 +5,45 @@ import { authorizeRequest } from '@/shared/rbac';
 import { ASSET_REGISTER_ROLES } from '@/shared/asset-access';
 import { assetItemLines, RegisterAssetUnitsSchema, validateAssetSelection } from '@/shared/asset-units';
 
+import { AssetRegisterQuery, assetRegisterWhere, assetRegisterOrder } from '@/shared/asset-register-query';
+
 export async function GET(request: NextRequest) {
   const auth = await authorizeRequest(request, ASSET_REGISTER_ROLES);
   if (!auth.success) return auth.response;
-  const q = (request.nextUrl.searchParams.get('q') || '').trim().slice(0, 160);
-  const poId = (request.nextUrl.searchParams.get('poId') || '').trim();
-  if (poId && !RegisterAssetUnitsSchema.shape.receivingReportId.safeParse(poId).success) return NextResponse.json({ success: false, error: 'Choose a valid purchase order.' }, { status: 422 });
-  const where: Prisma.AssetUnitWhereInput = { ...(poId ? { purchaseOrderId: poId } : {}), ...(q ? { OR: [
-    { assetTag: { contains: q } }, { qrCodeToken: { equals: q } }, { serialNumber: { contains: q } },
-    { itemName: { contains: q } }, { purchaseOrder: { poNumber: { contains: q } } },
-  ] } : {}) };
+  const params = request.nextUrl.searchParams;
+  const parsed = AssetRegisterQuery.safeParse({
+    q: (params.get('q') || '').trim().slice(0, 160), poId: params.get('poId') || '',
+    department: params.get('department') || '', condition: params.get('condition') || '',
+    sort: params.get('sort') || 'recent', page: params.get('page') ?? undefined,
+    pageSize: params.get('pageSize') ?? (params.has('page') ? 10 : undefined),
+    ids: params.has('ids') ? (params.get('ids') || '').split(',') : undefined,
+  });
+  if (!parsed.success) return NextResponse.json({ success: false, error: 'Choose valid register filters and a page size of 10 or 25.' }, { status: 422 });
+  const query = parsed.data;
+  const { q, poId } = query;
+  const where = assetRegisterWhere(query);
   try {
-    const [assets, total, reports] = await Promise.all([
-      prisma.assetUnit.findMany({ where, take: 100, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], include: {
+    const total = await prisma.assetUnit.count({ where });
+    const page = Math.min(query.page, Math.max(1, Math.ceil(total / query.pageSize)));
+    const [assets, reports, filterOrders] = await Promise.all([
+      prisma.assetUnit.findMany({ where, take: query.ids ? 100 : query.pageSize, skip: query.ids ? 0 : (page - 1) * query.pageSize, orderBy: assetRegisterOrder(query.sort), include: {
         purchaseOrder: { select: { id: true, poNumber: true, purchaseRequest: { select: { department: { select: { code: true, name: true } } } } } },
         receivingReport: { select: { condition: true, createdAt: true } },
       } }),
-      prisma.assetUnit.count({ where }),
       auth.user.role === Role.Receiving_Custodian ? prisma.receivingReport.findMany({
         where: { purchaseOrder: { purchaseRequest: { status: PRStatus.Received_and_Closed }, ...(poId ? { id: poId } : q ? { poNumber: { contains: q } } : {}) } },
         take: 50, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], include: {
           purchaseOrder: { include: { assetUnits: { select: { lineIndex: true, unitNumber: true } }, purchaseRequest: { select: { itemsPayload: true } } } },
         },
       }) : Promise.resolve([]),
+      params.get('options') === '1' ? prisma.purchaseOrder.findMany({
+        where: { assetUnits: { some: {} } }, orderBy: { poNumber: 'asc' },
+        select: { id: true, poNumber: true, purchaseRequest: { select: { department: { select: { code: true, name: true } } } } },
+      }) : Promise.resolve([]),
     ]);
-    return NextResponse.json({ success: true, assets, total, canRegister: auth.user.role === Role.Receiving_Custodian,
+    return NextResponse.json({ success: true, assets, total, page, pageSize: query.pageSize,
+      ...(params.get('options') === '1' ? { filterOrders: filterOrders.map(order => ({ id: order.id, poNumber: order.poNumber, department: order.purchaseRequest.department })) } : {}),
+      canRegister: auth.user.role === Role.Receiving_Custodian,
       receivedOrders: reports.map((report) => ({ reportId: report.id, purchaseOrderId: report.purchaseOrderId, poNumber: report.purchaseOrder.poNumber,
         lines: assetItemLines(report.purchaseOrder.purchaseRequest.itemsPayload), taggedUnits: report.purchaseOrder.assetUnits })) },
       { headers: { 'Cache-Control': 'private, no-store' } });
