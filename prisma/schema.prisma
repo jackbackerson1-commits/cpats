@@ -19,6 +19,18 @@ enum Role {
   Purchasing_Office
   Receiving_Custodian
   Global_Auditor
+  System_Administrator
+}
+
+enum AccountStatus {
+  Pending
+  Active
+  Disabled
+}
+
+enum AccountTokenPurpose {
+  Activation
+  Password_Reset
 }
 
 enum PRStatus {
@@ -59,6 +71,8 @@ model Department {
   code      String   @unique
   users     User[]
   prs       PurchaseRequest[]
+  requestDrafts RequestDraft[]
+  requestTemplates RequestTemplate[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -68,16 +82,52 @@ model User {
   email        String       @unique
   passwordHash String
   role         Role
+  accountStatus AccountStatus @default(Active)
+  sessionVersion Int @default(0)
+  activatedAt DateTime?
+  emailVerifiedAt DateTime?
   departmentId String
   department   Department   @relation(fields: [departmentId], references: [id], onDelete: Restrict)
   auditLogs    AuditLog[]
+  requestDrafts RequestDraft[]
+  requestTemplates RequestTemplate[]
   notifications Notification[]
   notificationPreference NotificationPreference?
+  accountTokens AccountToken[]
+  accountActions AccountManagementEvent[] @relation("AccountActionActor")
+  accountEvents AccountManagementEvent[] @relation("AccountActionTarget")
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
   
   @@index([role])
   @@index([departmentId])
+}
+
+model AccountToken {
+  id String @id @default(uuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purpose AccountTokenPurpose
+  tokenHash String @unique
+  deliveredViaSmtp Boolean @default(false)
+  expiresAt DateTime
+  usedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId, purpose, usedAt])
+}
+
+model AccountManagementEvent {
+  id String @id @default(uuid())
+  actorId String?
+  actor User? @relation("AccountActionActor", fields: [actorId], references: [id], onDelete: SetNull)
+  targetUserId String
+  targetUser User @relation("AccountActionTarget", fields: [targetUserId], references: [id], onDelete: Restrict)
+  action String
+  createdAt DateTime @default(now())
+
+  @@index([actorId, createdAt])
+  @@index([targetUserId, createdAt])
 }
 
 model PurchaseRequest {
@@ -93,11 +143,30 @@ model PurchaseRequest {
   purchaseOrders      PurchaseOrder[]
   auditLogs           AuditLog[]
   notifications       Notification[]
+  sourceDraft         RequestDraft?
   createdAt           DateTime        @default(now())
   updatedAt           DateTime        @updatedAt
 
   @@index([status])
   @@index([departmentId])
+}
+
+// Private unfinished forms. Saving never creates a procurement record or audit event.
+model RequestDraft {
+  id                 String @id @default(uuid())
+  ownerId            String
+  owner              User @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  departmentId       String
+  department         Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  payload            Json
+  version            Int @default(1)
+  submittedRequestId String? @unique
+  submittedRequest   PurchaseRequest? @relation(fields: [submittedRequestId], references: [id], onDelete: Restrict)
+  submittedAt        DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([ownerId, departmentId, submittedAt, updatedAt, id])
 }
 
 model PurchaseOrder {
@@ -109,6 +178,7 @@ model PurchaseOrder {
   paymentType       PaymentType       @default(CASH_CHECK)
   isCheckIssued     Boolean           @default(false)
   receivingReports  ReceivingReport[]
+  assetUnits        AssetUnit[]
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 
@@ -123,9 +193,29 @@ model ReceivingReport {
   invoiceFilePath     String
   asssetImageFilePath String        
   remarks             String?       @db.Text
+  assetUnits          AssetUnit[]
   createdAt           DateTime      @default(now())
 
   @@index([purchaseOrderId])
+}
+
+model AssetUnit {
+  id                String @id @default(uuid())
+  assetTag          String @unique
+  qrCodeToken       String @unique
+  purchaseOrderId   String
+  purchaseOrder     PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Restrict)
+  receivingReportId String
+  receivingReport   ReceivingReport @relation(fields: [receivingReportId], references: [id], onDelete: Restrict)
+  lineIndex         Int
+  unitNumber        Int
+  itemName          String @db.Text
+  serialNumber      String?
+  registeredById    String
+  createdAt         DateTime @default(now())
+
+  @@unique([purchaseOrderId, lineIndex, unitNumber])
+  @@index([receivingReportId])
 }
 
 model AuditLog {
@@ -137,6 +227,8 @@ model AuditLog {
   previousState       PRStatus?    
   newState            PRStatus
   remarks             String?         @db.Text
+  businessNecessityVerified Boolean?
+  businessBudgetAvailable   Boolean?
   notifications       Notification[]
   createdAt           DateTime        @default(now())
 
@@ -201,4 +293,20 @@ model EmailOutbox {
   updatedAt      DateTime          @updatedAt
 
   @@index([status, nextAttemptAt])
+}
+
+// Reusable form text/items, private to the author and current department.
+model RequestTemplate {
+  id String @id @default(uuid())
+  ownerId String
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  departmentId String
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  name String @db.VarChar(120)
+  payload Json
+  version Int @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerId, departmentId, createdAt, id])
 }
