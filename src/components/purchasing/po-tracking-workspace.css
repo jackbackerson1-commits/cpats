@@ -1,0 +1,110 @@
+.po-tracking-page {
+  --text-xs: var(--cpats-type-12);
+  --text-sm: var(--cpats-type-14);
+  --text-base: var(--cpats-type-16);
+  --text-lg: var(--cpats-type-20);
+  --text-xl: var(--cpats-type-20);
+  --text-2xl: var(--cpats-type-24);
+  --text-3xl: var(--cpats-type-24);
+  --spacing: var(--cpats-space-4);
+  --po-track-control: var(--cpats-control-touch);
+  --po-track-header: 6.5rem;
+  max-width: 120rem;
+  min-width: 0;
+  padding: var(--cpats-space-16) max(var(--cpats-space-16), env(safe-area-inset-right)) max(var(--cpats-space-16), env(safe-area-inset-bottom)) max(var(--cpats-space-16), env(safe-area-inset-left));
+  font-size: var(--cpats-type-14);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.po-tracking-page > :not(:last-child) { margin-block: 0 var(--cpats-space-16); }
+.po-tracking-page > header { padding: var(--cpats-space-16); border-radius: var(--cpats-radius); }
+.po-tracking-page > header > p { margin-bottom: var(--cpats-space-8); }
+.po-tracking-page h1 { font-size: clamp(var(--cpats-type-20), 1rem + 0.5vw, var(--cpats-type-24)); line-height: 1.25; }
+.po-tracking-page h2 { font-size: var(--cpats-type-16); }
+.po-tracking-page :where(h3, h4) { font-size: var(--cpats-type-14); }
+.po-tracking-page :where(button, summary, input, select) { min-height: var(--po-track-control); font-size: var(--cpats-type-14); }
+.po-tracking-page :where(button, summary) { padding-block: var(--cpats-space-4); }
+.po-tracking-page :where(input, select) { min-width: 0; max-width: 100%; padding-block: var(--cpats-space-4); font-size: var(--cpats-type-16); }
+.po-tracking-page :focus-visible { outline: 2px solid var(--cpats-focus); outline-offset: 2px; }
+.po-tracking-page :where(input, select, button, summary) { scroll-margin-top: calc(var(--po-track-header) + var(--cpats-space-16)); }
+.po-tracking-page .rounded-xl { border-radius: var(--cpats-radius); }
+.po-tracking-page :where(.p-5, .p-6) { padding: var(--cpats-space-16); }
+.po-tracking-page .shadow-xs { box-shadow: 0 1px 4px #0f172a08; }
+.po-tracking-page :where(.space-y-5, .space-y-6) > :not(:last-child) { margin-block-end: var(--cpats-space-16); }
+.po-tracking-page .gap-5 { gap: var(--cpats-space-16); }
+.po-tracking-views { flex-wrap: nowrap; overflow-x: auto; padding: var(--cpats-space-4); margin-inline: calc(-1 * var(--cpats-space-4)); }
+.po-tracking-views > * { flex: 0 0 auto; white-space: nowrap; }
+.po-tracking-filters { padding: var(--cpats-space-16); }
+.po-tracking-filters > div { min-width: 0; grid-template-columns: minmax(0, 1fr); }
+.po-tracking-filters > div > div { min-width: 0; }
+.po-tracking-empty { padding: var(--cpats-space-32) var(--cpats-space-16); }
+.po-tracking-table { display: none; }
+.po-tracking-table :where(th, td) { padding: var(--cpats-space-12); vertical-align: top; }
+.po-tracking-table th { font-size: var(--cpats-type-12); font-weight: 500; }
+.po-tracking-table td > span { margin-top: 0; }
+.po-tracking-table button { width: 100%; padding-inline: var(--cpats-space-8); }
+.po-tracking-cards { grid-template-columns: minmax(0, 1fr); }
+.po-tracking-cards article { padding: var(--cpats-space-12); }
+.po-tracking-cards h2 { font-size: var(--cpats-type-14); line-height: 1.5; }
+.po-tracking-reference > p:first-child { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.po-tracking-page .po-tracking-dialog { width: 100%; height: 100dvh; max-height: 100dvh; padding-bottom: env(safe-area-inset-bottom); }
+.po-tracking-dialog > div { padding: var(--cpats-space-16) max(var(--cpats-space-16), env(safe-area-inset-right)) var(--cpats-space-16) max(var(--cpats-space-16), env(safe-area-inset-left)); }
+.po-tracking-dialog > div:first-child { padding-block: max(var(--cpats-space-12), env(safe-area-inset-top)) var(--cpats-space-12); }
+.po-tracking-dialog #tracking-detail-title { font-size: var(--cpats-type-20); }
+.po-tracking-dialog :where(div, dl, dd, li, article) { min-width: 0; }
+.po-tracking-dialog :where(p, dd, h3, h4) { overflow-wrap: anywhere; }
+.po-tracking-dialog .po-tracking-reference > p:first-child { white-space: normal; overflow-wrap: anywhere; }
+.po-tracking-dialog > div:nth-child(2) > h3 { max-width: 100%; font-size: var(--cpats-type-16); }
+.po-tracking-dialog :where(input, select, button, summary, [tabindex]) { scroll-margin-top: calc(var(--po-track-control) + var(--cpats-space-32)); }
+.po-tracking-dialog table { min-width: 32rem; }
+.po-tracking-dialog th { padding: var(--cpats-space-8) var(--cpats-space-12); }
+.po-tracking-dialog td { padding: var(--cpats-space-12); }
+.po-tracking-dialog li > p { line-height: 1.5; }
+.po-tracking-progress > div { top: calc(var(--cpats-space-4) + var(--cpats-space-16)); }
+.po-tracking-progress li > span:first-child { width: var(--cpats-space-32); height: var(--cpats-space-32); }
+body:has(.po-tracking-page) { min-height: 100dvh; }
+/* Compact the register without changing shared Purchasing pages or its drawer. */
+body:has(.purchasing-portal-header) main.purchasing-workspace.po-tracking-page {
+  & > :not(:last-child) { margin-block: 0 var(--cpats-space-12); }
+  & > header.purchasing-introduction { padding-bottom: 0; margin-bottom: var(--cpats-space-8); }
+  & .po-tracking-command-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--cpats-space-8); }
+  & .po-tracking-search { flex: 1 1 20rem; }
+  & .po-tracking-command-bar > select { flex: 0 1 15rem; }
+  & .po-tracking-view-filters { display: flex; flex-wrap: wrap; gap: var(--cpats-space-4); padding: var(--cpats-space-4); border-radius: var(--cpats-radius); background: var(--portal-mint); }
+  & .po-tracking-view-filters button { display: inline-flex; align-items: center; justify-content: center; gap: var(--cpats-space-4); padding-inline: var(--cpats-space-8); border: 1px solid transparent; border-radius: var(--cpats-radius); color: var(--portal-muted); }
+  & .po-tracking-view-filters button:hover { border-color: var(--portal-line); }
+  & .po-tracking-view-filters button[aria-pressed="true"] { border-color: var(--portal-forest); background: var(--portal-forest); color: white; }
+  & .po-tracking-filters { padding: var(--cpats-space-12) var(--cpats-space-16); }
+  & .po-tracking-filters > div { gap: var(--cpats-space-8); }
+  & .po-tracking-filters > details { margin-top: var(--cpats-space-4); }
+  & > section[aria-label="Order register"] > :not(:last-child) { margin-block-end: var(--cpats-space-8); }
+  & .po-tracking-table :where(th, td) { padding-block: var(--cpats-space-8); }
+  & .po-tracking-table td:first-child > p { margin-top: var(--cpats-space-4); }
+  & .po-tracking-cards article { padding: var(--cpats-space-12); }
+  & .po-tracking-cards article > :not(:last-child) { margin-block-end: var(--cpats-space-8); }
+}
+@media (max-width: 47.999rem) {
+  body:has(.purchasing-portal-header) main.po-tracking-page {
+    & .po-tracking-view-filters { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    & .po-tracking-view-filters button { flex-wrap: wrap; }
+    & .po-tracking-command-bar > select { flex-grow: 1; }
+  }
+}
+@media (min-width: 40rem) {
+  .po-tracking-page .po-tracking-dialog { width: min(45rem, 90vw); }
+}
+@media (min-width: 48rem) {
+  .po-tracking-page { padding: var(--cpats-space-24) max(var(--cpats-space-24), env(safe-area-inset-right)) max(var(--cpats-space-24), env(safe-area-inset-bottom)) max(var(--cpats-space-24), env(safe-area-inset-left)); }
+  .po-tracking-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 64rem) {
+  .po-tracking-page { --po-track-control: var(--cpats-control-default); --po-track-header: 4rem; padding-inline: max(clamp(var(--cpats-space-16), 2vw, var(--cpats-space-32)), env(safe-area-inset-left)) max(clamp(var(--cpats-space-16), 2vw, var(--cpats-space-32)), env(safe-area-inset-right)); }
+  .po-tracking-page :where(input, select) { font-size: var(--cpats-type-14); }
+  .po-tracking-filters > div { grid-template-columns: minmax(0, 1fr) minmax(12rem, 16rem) auto; }
+  .po-tracking-table { display: block; }
+  .po-tracking-cards { display: none; }
+}
+@media (pointer: coarse) {
+  .po-tracking-page { --po-track-control: var(--cpats-control-touch); }
+  .po-tracking-page :where(input, select) { font-size: var(--cpats-type-16); }
+}
