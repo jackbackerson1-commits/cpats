@@ -1,506 +1,84 @@
 'use client';
-
-import React, { useState, useEffect, useRef, useTransition } from 'react';
-import { Role, PRStatus } from '@prisma/client';
-import { AuthUser } from '@/shared/session';
-import QRCodeSVG from '@/components/ui/QRCodeSVG';
-
-interface AuditLogEntry {
-  id: string;
-  createdAt: string;
-  previousState: PRStatus | null;
-  newState: PRStatus;
-  remarks: string | null;
-  actor: {
-    email: string;
-    role: Role;
-  };
-}
-
-interface PurchaseOrderSummary {
-  poNumber: string;
-  qrCodeToken?: string;
-  isCheckIssued: boolean;
-  receivingReports?: Array<{
-    condition: string;
-    asssetImageFilePath: string;
-    invoiceFilePath: string;
-  }>;
-}
-
-interface RequisitionReportNode {
-  id: string;
-  justification: string;
-  itemsPayload?: any;
-  status: PRStatus;
-  isDirectPoBypass: boolean;
-  createdAt: string;
-  department: {
-    name: string;
-    code: string;
-  };
-  purchaseOrders: PurchaseOrderSummary[];
-  auditLogs: AuditLogEntry[];
-}
-
-function QrCodeIcon({ className = 'size-3.5 shrink-0' }: { className?: string }) {
-  return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}><path d="M4 9V5h4M20 9V5h-4M4 15v4h4M20 15v4h-4M8 8h3v3H8zM13 8h3v3h-3zM8 13h3v3H8zM14 14h2v2h-2z" strokeLinecap="round" strokeLinejoin="round" /></svg>;
-}
-
-function CameraIcon({ className = 'size-3.5 shrink-0' }: { className?: string }) {
-  return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}><path d="M4.5 8.5h3l1.3-2h6.4l1.3 2h3a1.8 1.8 0 0 1 1.8 1.8v7.2a1.8 1.8 0 0 1-1.8 1.8h-15A1.8 1.8 0 0 1 2.7 17.5v-7.2a1.8 1.8 0 0 1 1.8-1.8Z" strokeLinejoin="round" /><circle cx="12" cy="14" r="3" /></svg>;
-}
-
-function XIcon({ className = 'size-4 shrink-0' }: { className?: string }) {
-  return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}><path d="m6 6 12 12M18 6 6 18" strokeLinecap="round" /></svg>;
-}
-
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Role } from '@prisma/client';
+import type { AuthUser } from '@/shared/session';
+import AuditWorkspace, { type AuditRecord } from '@/components/audit/AuditWorkspace';
+import { actionFeedback, submissionFeedbackError } from '@/components/ui/action-feedback';
 export default function GlobalAuditorConsolePage() {
-  const [isPending, startTransition] = useTransition();
-
-  const [activeUser, setActiveUser] = useState<AuthUser | null>(null);
-  const [userLoading, setUserLoading] = useState<boolean>(true);
-
-  const [selectedStatus, setSelectedStatus] = useState<string>('');
-  const [selectedSortOrder, setSelectedSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [records, setRecords] = useState<RequisitionReportNode[]>([]);
-  const [systemAlert, setSystemAlert] = useState<string | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [sessionLoading, setSessionLoading] = useState(true);
+  const [status, setStatus] = useState('');
+  const [order, setOrder] = useState<'asc' | 'desc'>('desc');
+  const [records, setRecords] = useState<AuditRecord[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [notificationError, setNotificationError] = useState<string | null>(null);
-  const [highlightedPrId, setHighlightedPrId] = useState<string | null>(null);
-  const [highlightedAuditLogId, setHighlightedAuditLogId] = useState<string | null>(null);
-  const notificationTargetHandled = useRef(false);
-
-  const [activeMediaModal, setActiveMediaModal] = useState<{
-    type: 'IMAGE' | 'QR';
-    title: string;
-    payload: string;
-  } | null>(null);
-
+  const [selectedId, setSelectedId] = useState('');
+  const [eventId, setEventId] = useState<string | null>(null);
+  const targetHandled = useRef(false), sequence = useRef(0);
+  const notificationScrolled = useRef(false);
   useEffect(() => {
-    fetch('/api/auth/me')
-      .then((res) => res.json())
-      .then((res) => {
-        if (res.success && res.data) {
-          setActiveUser(res.data);
-          fetchAuthoritativeLedger(res.data.role);
-        } else {
-          setActiveUser({
-            id: 'global-auditor-uuid-007',
-            email: 'auditor@dmc.edu.ph',
-            role: Role.Global_Auditor,
-            departmentId: 'audit-compliance-dept-uuid',
-            departmentCode: 'IAO',
-            departmentName: 'Internal Audit Office',
-          });
-          fetchAuthoritativeLedger(Role.Global_Auditor);
-        }
-      })
-      .catch(() => setSystemAlert('Session verification failed.'))
-      .finally(() => setUserLoading(false));
+    let mounted = true;
+    void fetch('/api/auth/me').then(response => response.json()).then(result => {
+      if (!mounted) return;
+      if (result.success && result.data) setUser(result.data);
+      else setError('Your session could not be verified. Sign in again to open the audit ledger.');
+    }).catch(() => { if (mounted) setError('Session verification failed. Reload the page to try again.'); })
+      .finally(() => { if (mounted) setSessionLoading(false); });
+    return () => { mounted = false; };
   }, []);
-
-  const fetchAuthoritativeLedger = (userRole?: Role) => {
-    setSystemAlert(null);
-    const roleToValidate = userRole || activeUser?.role;
-    
-    if (roleToValidate !== Role.Global_Auditor) {
-      setSystemAlert("FORBIDDEN: Profile context strictly unauthorized to request analytical system logs.");
-      return;
-    }
-
-    startTransition(async () => {
-      try {
-        const response = await fetch('/api/audit/report', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            status: selectedStatus || undefined,
-            sortOrder: selectedSortOrder,
-          }),
-        });
-
-        const result = await response.json();
-
-        if (!response.ok) {
-          throw new Error(result.error || "Analytics runtime encountered a data mapping boundary failure.");
-        }
-
-        const reportRecords: RequisitionReportNode[] = result.data || [];
-        setRecords(reportRecords);
-        if (!notificationTargetHandled.current) {
-          notificationTargetHandled.current = true;
-          const targetId = new URLSearchParams(window.location.search).get('prId');
-          if (targetId) {
-            const target = reportRecords.find((record) => record.id === targetId);
-            if (target) {
-              setHighlightedPrId(targetId);
-              const auditLogId = new URLSearchParams(window.location.search).get('auditLogId');
-              if (target.auditLogs.some((log) => log.id === auditLogId)) setHighlightedAuditLogId(auditLogId);
-            }
-            else setNotificationError('This notification’s request is not available in the current audit ledger. Refresh or clear the status filter.');
-          }
-        }
-      } catch (err: any) {
-        setSystemAlert(err.message || "An execution interrupt split connection pools.");
+  const load = useCallback(async (feedback = false) => {
+    if (user?.role !== Role.Global_Auditor) return;
+    const current = ++sequence.current;
+    await Promise.resolve();
+    if (current !== sequence.current) return;
+    setLoading(true); setError(null); setNotificationError(null);
+    try {
+      const response = await fetch('/api/audit/report', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: status || undefined, sortOrder: order }),
+      });
+      const result = await response.json();
+      if (current !== sequence.current) return;
+      if (!response.ok) throw new Error(result.error || 'The audit ledger could not be loaded.');
+      const next: AuditRecord[] = result.data || [];
+      setRecords(next);
+      setSelectedId(previous => next.some(record => record.id === previous) ? previous : '');
+      if (feedback) actionFeedback('Audit ledger refreshed', `${next.length} request records loaded. Audit access remains read-only.`);
+      if (!targetHandled.current) {
+        const params = new URLSearchParams(window.location.search), prId = params.get('prId'), auditLogId = params.get('auditLogId');
+        if (prId) {
+          const record = next.find(record => record.id === prId);
+          if (record) {
+            setSelectedId(prId);
+            setEventId(record.auditLogs.some(log => log.id === auditLogId) ? auditLogId : null);
+            targetHandled.current = true;
+          } else setNotificationError('This notification’s request is not available in the current audit ledger. Refresh or clear the status filter.');
+        } else targetHandled.current = true;
       }
-    });
-  };
-
+    } catch (cause) {
+      if (current !== sequence.current) return;
+      setError(cause instanceof Error ? cause.message : 'The audit ledger could not be loaded.');
+      if (feedback) submissionFeedbackError(cause, 'Audit refresh failed');
+    } finally { if (current === sequence.current) setLoading(false); }
+  }, [user, status, order]);
   useEffect(() => {
-    if (activeUser && activeUser.role === Role.Global_Auditor) {
-      fetchAuthoritativeLedger(activeUser.role);
-    }
-  }, [selectedStatus, selectedSortOrder]);
-
+    let mounted = true;
+    const counter = sequence;
+    void Promise.resolve().then(() => { if (mounted) return load(); });
+    return () => { mounted = false; counter.current++; };
+  }, [load]);
   useEffect(() => {
-    if (!highlightedPrId) return;
+    const targetId = new URLSearchParams(window.location.search).get('prId');
+    if (!selectedId || selectedId !== targetId || notificationScrolled.current) return;
+    notificationScrolled.current = true;
     const frame = window.requestAnimationFrame(() => {
-      const surface = window.matchMedia('(min-width: 1024px)').matches ? 'audit-row' : 'audit-record';
-      document.getElementById(`${surface}-${highlightedPrId}`)?.scrollIntoView({ behavior: 'auto', block: 'start' });
+      const event = eventId && document.getElementById(`audit-event-${eventId}`);
+      (event || document.querySelector('[aria-label="Audit record details"]'))?.scrollIntoView({ block: 'start' });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [highlightedPrId, records]);
-
-  const computeCoa3WayMatch = (node: RequisitionReportNode) => {
-    if (node.status === PRStatus.Declined) {
-      return { score: 0, label: 'TERMINATED', badge: 'bg-rose-100 text-rose-800 border-rose-200' };
-    }
-    const step1PRApproved = node.status !== PRStatus.Draft && node.status !== PRStatus.Pending_Business_Approval && node.status !== PRStatus.Pending_Admin_Approval && node.status !== PRStatus.Returned_for_Correction;
-    const step2CheckIssued = node.purchaseOrders.some((po) => po.isCheckIssued);
-    const step3ReceivedGood = node.purchaseOrders.some((po) => po.receivingReports && po.receivingReports.length > 0 && po.receivingReports.some((r) => r.condition === 'Good'));
-
-    const matchScore = (step1PRApproved ? 1 : 0) + (step2CheckIssued ? 1 : 0) + (step3ReceivedGood ? 1 : 0);
-
-    if (matchScore === 3) {
-      return { score: 3, label: '3/3 FULLY MATCHED', badge: 'bg-emerald-100 text-emerald-800 border-emerald-300' };
-    }
-    if (matchScore === 2) {
-      return { score: 2, label: '2/3 IN PROGRESS', badge: 'bg-amber-100 text-amber-800 border-amber-300' };
-    }
-    return { score: 1, label: '1/3 INITIALIZED', badge: 'bg-slate-100 text-slate-700 border-slate-300' };
-  };
-
-  const fullyMatchedCount = records.filter((r) => computeCoa3WayMatch(r).score === 3).length;
-  const inProgressCount = records.filter((r) => computeCoa3WayMatch(r).score === 2).length;
-
-  if (userLoading) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center text-sm font-medium text-slate-500 font-sans">
-        Loading Global Audit Session…
-      </div>
-    );
-  }
-
-  return (
-    <div className="max-w-7xl mx-auto bg-slate-50 rounded-2xl shadow-sm border border-slate-200 p-3 sm:p-6 my-4 sm:my-8 text-slate-900 font-sans">
-      
-      <div className="border-b border-slate-200 pb-4 sm:pb-5 mb-4 sm:mb-6 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 bg-white p-4 rounded-xl shadow-2xs">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900">
-            Global Audit Ledger & COA 3-Way Match Console
-          </h1>
-          <p className="text-[11px] sm:text-xs text-slate-500 mt-1">
-            Clearance Level: <span className="font-mono bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200 font-bold uppercase">{activeUser?.role.replace(/_/g, ' ') || 'Global Auditor'}</span>
-          </p>
-        </div>
-        <div className="text-left sm:text-right border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100">
-          <span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest block">DMC COMPLIANCE ENGINE</span>
-          <span className="text-[11px] sm:text-xs font-mono font-bold text-indigo-600 bg-indigo-50 px-2.5 py-0.5 sm:py-1 rounded-md border border-indigo-100 mt-0.5 inline-block">
-            Mode: READ-ONLY AUDIT
-          </span>
-        </div>
-      </div>
-
-      {/* COA Compliance Metric Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4 sm:mb-6">
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
-          <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Audited Requisitions</span>
-          <span className="text-xl font-black text-slate-900 mt-1 block font-mono">{records.length}</span>
-        </div>
-        <div className="bg-white p-3.5 rounded-xl border border-emerald-200 shadow-2xs">
-          <span className="block text-[10px] font-bold text-emerald-700 uppercase tracking-wider">3/3 Fully Matched (COA)</span>
-          <span className="text-xl font-black text-emerald-800 mt-1 block font-mono">{fullyMatchedCount}</span>
-        </div>
-        <div className="bg-white p-3.5 rounded-xl border border-amber-200 shadow-2xs">
-          <span className="block text-[10px] font-bold text-amber-700 uppercase tracking-wider">2/3 In-Progress Lifecycle</span>
-          <span className="text-xl font-black text-amber-800 mt-1 block font-mono">{inProgressCount}</span>
-        </div>
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
-          <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">COA Audit Compliance</span>
-          <span className="text-xl font-black text-indigo-700 mt-1 block font-mono">
-            {records.length > 0 ? `${Math.round((fullyMatchedCount / records.length) * 100)}%` : '100%'}
-          </span>
-        </div>
-      </div>
-
-      {(systemAlert || notificationError) && (
-        <div className="mb-4 sm:mb-6 p-3.5 sm:p-4 bg-rose-50 border-l-4 border-rose-500 rounded-r-lg text-rose-700 text-xs font-bold">
-          <span className="block uppercase tracking-wide text-[9px] sm:text-[10px] mb-0.5">System Audit Warning</span>
-          {systemAlert || notificationError}
-        </div>
-      )}
-
-      <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-2xs mb-4 sm:mb-6 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 items-end">
-        <div>
-          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-            Filter Checkpoint Status
-          </label>
-          <select
-            className="w-full min-h-[44px] bg-white border border-slate-300 text-xs text-slate-800 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent transition"
-            value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
-          >
-            <option value="">-- View All Status Lifecycles --</option>
-            {Object.keys(PRStatus).map((status) => (
-              <option key={status} value={status}>{status.replace(/_/g, ' ')}</option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-            Log Sequence Order
-          </label>
-          <select
-            className="w-full min-h-[44px] bg-white border border-slate-300 text-xs text-slate-800 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent transition"
-            value={selectedSortOrder}
-            onChange={(e) => setSelectedSortOrder(e.target.value as 'asc' | 'desc')}
-          >
-            <option value="desc">Newest First</option>
-            <option value="asc">Oldest First</option>
-          </select>
-        </div>
-
-        <div>
-          <button
-            type="button"
-            disabled={isPending}
-            onClick={() => fetchAuthoritativeLedger()}
-            className="w-full min-h-[44px] bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 text-white text-xs font-bold uppercase tracking-wider py-2.5 rounded-lg transition shadow-2xs active:scale-[0.99] cursor-pointer"
-          >
-            {isPending ? 'Syncing Matrix...' : 'Refresh Audit Matrix'}
-          </button>
-        </div>
-      </div>
-
-      <div className="bg-white border border-slate-200 rounded-xl shadow-2xs overflow-hidden">
-        {records.length === 0 ? (
-          <div className="p-8 sm:p-12 text-center text-slate-400 text-xs font-medium">
-            No system tracking records match the designated verification filters.
-          </div>
-        ) : (
-          <>
-          <div className="space-y-3 p-3 lg:hidden">
-            {records.map((node) => {
-              const coaMatch = computeCoa3WayMatch(node);
-              const report = node.purchaseOrders.flatMap((po) => po.receivingReports || [])[0];
-              return <article key={node.id} id={`audit-record-${node.id}`} className={`min-w-0 scroll-mt-24 rounded-xl border p-4 ${node.id === highlightedPrId ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-500' : 'border-slate-200 bg-white'}`}>
-                <p className="break-all font-mono text-[11px] text-slate-500">{node.id}</p>
-                <h2 className="mt-2 break-words text-sm font-bold text-slate-900">{node.department.name} ({node.department.code})</h2>
-                <p className="mt-2 break-words text-xs leading-5 text-slate-700">{node.justification}</p>
-                <div className="mt-3 flex flex-wrap gap-2 text-[10px] font-semibold">
-                  <span className={`rounded-md border px-2 py-1 ${coaMatch.badge}`}>{coaMatch.label}</span>
-                  <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1">{node.status.replace(/_/g, ' ')}</span>
-                </div>
-                <div className="mt-3 space-y-2 border-t border-slate-200 pt-3">
-                  <p className="text-[11px] font-bold text-slate-700">Linked purchase orders</p>
-                  {node.purchaseOrders.length === 0 ? <p className="text-xs text-slate-500">Unbound</p> : node.purchaseOrders.map((po) => <div key={po.poNumber} className="flex flex-wrap items-center gap-2 text-xs">
-                    <span className="break-all font-mono font-semibold text-indigo-700">{po.poNumber}</span>
-                    <span>{po.isCheckIssued ? 'Cleared' : 'Awaiting clearance'}</span>
-                    {po.qrCodeToken && <button type="button" onClick={() => setActiveMediaModal({ type: 'QR', title: `QR Token Badge: ${po.poNumber}`, payload: po.qrCodeToken! })} className="inline-flex min-h-10 items-center gap-1 rounded-lg border border-slate-200 px-3 text-slate-700"><QrCodeIcon />View QR Token</button>}
-                  </div>)}
-                  {report ? <button type="button" onClick={() => setActiveMediaModal({ type: 'IMAGE', title: 'Physical Hardware Photo Inspection', payload: report.asssetImageFilePath })} className="inline-flex min-h-10 items-center gap-1 rounded-lg border border-emerald-200 px-3 text-emerald-800"><CameraIcon />View Photo</button> : <p className="text-xs text-slate-500">No photo</p>}
-                </div>
-                <details className="mt-3 border-t border-slate-200 pt-3" open={node.id === highlightedPrId}>
-                  <summary className="cursor-pointer text-xs font-bold text-slate-800">Log timeline ({node.auditLogs.length})</summary>
-                  <div className="mt-2 space-y-2">{node.auditLogs.map((log) => <div key={log.id} className={`rounded-lg p-2 text-xs text-slate-700 ${log.id === highlightedAuditLogId ? 'bg-emerald-100 ring-2 ring-emerald-500' : 'bg-slate-50'}`}>
-                    <p className="font-semibold">{log.newState.replace(/_/g, ' ')} · {log.actor.role.replace(/_/g, ' ')}</p>
-                    <p className="mt-1 break-words">{log.remarks || 'No remarks recorded.'}</p>
-                    <time className="mt-1 block text-[10px] text-slate-500">{new Date(log.createdAt).toLocaleString()}</time>
-                  </div>)}</div>
-                </details>
-              </article>;
-            })}
-          </div>
-          <div className="hidden overflow-x-auto lg:block">
-            <table className="w-full border-collapse text-left min-w-[850px]">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 text-[10px] font-bold uppercase tracking-wider">
-                  <th className="p-3 sm:p-4 whitespace-nowrap">Tracking UUID</th>
-                  <th className="p-3 sm:p-4 whitespace-nowrap">Department</th>
-                  <th className="p-3 sm:p-4">Justification</th>
-                  <th className="p-3 sm:p-4 whitespace-nowrap">COA 3-Way Match</th>
-                  <th className="p-3 sm:p-4 whitespace-nowrap">Linked PO & QR</th>
-                  <th className="p-3 sm:p-4 whitespace-nowrap">Hardware Photo</th>
-                  <th className="p-3 sm:p-4 whitespace-nowrap">Status</th>
-                  <th className="p-3 sm:p-4">Log Timeline</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
-                {records.map((node) => {
-                  const coaMatch = computeCoa3WayMatch(node);
-                  return (
-                    <tr key={node.id} id={`audit-row-${node.id}`} className={`transition ${node.id === highlightedPrId ? 'bg-emerald-50 ring-2 ring-inset ring-emerald-500' : 'hover:bg-slate-50/70'}`}>
-                      <td className="p-3 sm:p-4 font-mono text-[10px] sm:text-[11px] text-slate-500 font-semibold whitespace-nowrap">
-                        {node.id.substring(0, 13)}...
-                      </td>
-                      <td className="p-3 sm:p-4 whitespace-nowrap">
-                        <span className="font-bold text-slate-900">{node.department.code}</span>
-                        <span className="block text-[10px] text-slate-400 mt-0.5">{node.department.name}</span>
-                      </td>
-                      <td className="p-3 sm:p-4 max-w-xs truncate text-slate-600 font-medium" title={node.justification}>
-                        {node.justification}
-                      </td>
-                      <td className="p-3 sm:p-4 whitespace-nowrap">
-                        <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-mono font-bold border ${coaMatch.badge}`}>
-                          {coaMatch.label}
-                        </span>
-                      </td>
-                      <td className="p-3 sm:p-4 whitespace-nowrap">
-                        {node.purchaseOrders.length > 0 ? (
-                          node.purchaseOrders.map((po, idx) => (
-                            <div key={idx} className="space-y-1">
-                              <div className="font-mono text-[11px] font-bold text-indigo-600 flex items-center gap-1.5">
-                                <span>{po.poNumber}</span>
-                                <span className={`text-[8px] px-1 rounded font-bold uppercase ${po.isCheckIssued ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                                  {po.isCheckIssued ? 'Cleared' : 'Awaiting'}
-                                </span>
-                              </div>
-                              {po.qrCodeToken && (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setActiveMediaModal({
-                                      type: 'QR',
-                                      title: `QR Token Badge: ${po.poNumber}`,
-                                      payload: po.qrCodeToken!,
-                                    })
-                                  }
-                                  className="text-[9px] font-mono font-bold text-slate-600 bg-slate-100 hover:bg-emerald-100 hover:text-emerald-800 px-1.5 py-0.5 rounded border border-slate-200 transition cursor-pointer"
-                                >
-                                  <span className="inline-flex items-center gap-1.5">
-                                    <QrCodeIcon className="size-3.5 shrink-0" />
-                                    <span>View QR Token</span>
-                                  </span>
-                                </button>
-                              )}
-                            </div>
-                          ))
-                        ) : (
-                          <span className="text-slate-400 italic text-[10px]">Unbound</span>
-                        )}
-                      </td>
-                      <td className="p-3 sm:p-4 whitespace-nowrap">
-                        {node.purchaseOrders.some((po) => po.receivingReports && po.receivingReports.length > 0) ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const report = node.purchaseOrders.flatMap((p) => p.receivingReports || [])[0];
-                              setActiveMediaModal({
-                                type: 'IMAGE',
-                                title: `Physical Hardware Photo Inspection`,
-                                payload: report?.asssetImageFilePath || '',
-                              });
-                            }}
-                            className="text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2 py-1 rounded-md border border-emerald-200 transition cursor-pointer"
-                          >
-                            <span className="inline-flex items-center gap-1.5">
-                              <CameraIcon className="size-3.5 shrink-0" />
-                              <span>View Photo</span>
-                            </span>
-                          </button>
-                        ) : (
-                          <span className="text-slate-400 italic text-[10px]">No Photo</span>
-                        )}
-                      </td>
-                      <td className="p-3 sm:p-4 whitespace-nowrap">
-                        <span className={`inline-block px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[9px] sm:text-[10px] font-black tracking-wide uppercase
-                          ${node.status === PRStatus.Received_and_Closed ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : ''}
-                          ${node.status === PRStatus.Declined ? 'bg-rose-100 text-rose-800 border border-rose-200' : ''}
-                          ${node.status === PRStatus.Draft ? 'bg-slate-100 text-slate-600 border border-slate-200' : ''}
-                          ${node.status !== PRStatus.Received_and_Closed && node.status !== PRStatus.Declined && node.status !== PRStatus.Draft ? 'bg-amber-100 text-amber-800 border border-amber-200' : ''}
-                        `}>
-                          {node.status.replace(/_/g, ' ')}
-                        </span>
-                      </td>
-                      <td className="p-3 sm:p-4 max-w-xs">
-                        <div className="bg-slate-50 rounded-lg p-2 border border-slate-100 space-y-1.5 max-h-28 overflow-y-auto">
-                          {node.auditLogs.map((log) => (
-                            <div key={log.id} className={`text-[9px] sm:text-[10px] border-b border-slate-200/60 pb-1 last:border-none last:pb-0 ${log.id === highlightedAuditLogId ? 'rounded bg-emerald-100 ring-2 ring-emerald-500' : ''}`}>
-                              <div className="flex justify-between font-medium text-slate-400 font-mono text-[8px] sm:text-[9px]">
-                                <span>{new Date(log.createdAt).toLocaleDateString()}</span>
-                                <span className="text-slate-500 font-bold">{log.actor.role}</span>
-                              </div>
-                              <p className="text-slate-600 mt-0.5 leading-tight">
-                                <span className="font-bold text-slate-800">[{log.newState}]</span> {log.remarks}
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          </>
-        )}
-      </div>
-
-      {activeMediaModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 font-sans">
-          <div className="bg-white rounded-xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-slate-200 text-center">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
-                {activeMediaModal.title}
-              </h3>
-              <button
-                onClick={() => setActiveMediaModal(null)}
-                className="text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer"
-                aria-label="Close media preview"
-              >
-                <XIcon className="size-4 shrink-0" />
-              </button>
-            </div>
-
-            {activeMediaModal.type === 'QR' ? (
-              <div className="py-4 space-y-3">
-                <div className="p-3 bg-slate-50 inline-block rounded-xl border border-slate-200 shadow-inner">
-                  <QRCodeSVG value={activeMediaModal.payload} size={160} />
-                </div>
-                <p className="text-[11px] font-mono text-slate-500 break-all bg-slate-100 p-2 rounded">
-                  {activeMediaModal.payload}
-                </p>
-              </div>
-            ) : (
-              <div className="py-2 space-y-2">
-                <img
-                  src={activeMediaModal.payload}
-                  alt="Hardware Photo Proof"
-                  className="max-h-64 rounded-lg mx-auto border border-slate-200 object-cover shadow-sm"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = 'https://via.placeholder.com/300x200?text=Hardware+Photo+Record';
-                  }}
-                />
-                <p className="text-[10px] font-mono text-slate-400 break-all">
-                  Path: {activeMediaModal.payload}
-                </p>
-              </div>
-            )}
-
-            <div className="pt-2 border-t border-slate-100 text-right">
-              <button
-                onClick={() => setActiveMediaModal(null)}
-                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs rounded-lg transition cursor-pointer"
-              >
-                Close Viewport
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-    </div>
-  );
+  }, [selectedId, eventId]);
+  if (sessionLoading) return <p role="status" className="mx-auto max-w-[1920px] px-4 py-10 text-sm text-slate-600 sm:px-6 lg:px-8">Loading audit session…</p>;
+  if (!user || user.role !== Role.Global_Auditor) return <div role="alert" className="mx-4 my-8 rounded-xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-800">{error || 'The audit ledger is available to Global Auditors only.'}</div>;
+  return <AuditWorkspace records={records} loading={loading} error={error} notificationError={notificationError} status={status} order={order} onStatus={setStatus} onOrder={setOrder} refresh={() => void load(true)} selectedId={selectedId} onSelect={setSelectedId} eventId={eventId} email={user.email} />;
 }
