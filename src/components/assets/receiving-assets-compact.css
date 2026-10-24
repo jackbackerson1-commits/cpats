@@ -1,0 +1,18 @@
+/* Registration presentation belongs only to Receiving on the shared asset route. */
+body:has(.receiving-assets-header) .asset-register-page .asset-registration-section {
+  & > p { margin-top: var(--cpats-space-8); }
+  & form { margin-top: var(--cpats-space-16); }
+  & :where(form, fieldset) > :not(:last-child) { margin-block-end: var(--cpats-space-12); }
+  & fieldset > .grid { gap: var(--cpats-space-12) var(--cpats-space-16); }
+  & :where(input, select) { margin-top: var(--cpats-space-8); }
+  & section[aria-label="Item tagging progress"] { padding: var(--cpats-space-12); }
+  & section[aria-label="Item tagging progress"] > :not(:last-child) { margin-block-end: var(--cpats-space-8); }
+  & section[aria-label="Item tagging progress"] dl { gap: var(--cpats-space-12); }
+  & section[aria-label="Item tagging progress"] dd { font-size: var(--cpats-type-20); line-height: 1.5; }
+  & section[aria-label="Item tagging progress"] p { font-size: var(--cpats-type-12); }
+  & fieldset > .flex { flex-wrap: wrap; gap: var(--cpats-space-8) var(--cpats-space-12); }
+  & fieldset > .flex > label { max-width: 24rem; }
+  & fieldset > .flex > button { flex: 0 1 auto; max-width: 100%; }
+  & fieldset > .grid > label.rounded-lg { padding: var(--cpats-space-12); }
+  & [role="alert"] { margin-top: var(--cpats-space-12); }
+}
