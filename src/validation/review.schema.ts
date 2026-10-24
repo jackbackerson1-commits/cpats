@@ -7,7 +7,10 @@ export const ReviewPRSchema = z.object({
     message: "Action must be strictly bounded to SUBMIT, APPROVE, DECLINE, or RETURN_FOR_CORRECTION."
   }),
   remarks: z.string().min(5, "Audit compliance requires remarks to be at least 5 characters long to preserve trail transparency."),
-  adminProofFilePath: z.string().url("Invalid tracking link format.").optional()
+  adminProofFilePath: z.union([
+    z.string().url('Invalid tracking link format.'),
+    z.string().regex(/^\/uploads\/[^/\\\x00-\x1f]+$/, 'Choose a valid uploaded proof reference.'),
+  ]).optional()
 });
 
 export type ReviewPRInput = z.infer<typeof ReviewPRSchema>;

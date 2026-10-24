@@ -1,7 +1,11 @@
 // src/app/dashboard/pr/new/page.tsx
 'use client';
 
-import React, { useState, useEffect, useRef, useTransition } from 'react';
+import { SubmissionFeedback } from '@/components/ui/SubmissionFeedback';
+import { describeSubmissionIssue, SubmissionResponseError, type SubmissionIssue } from '@/shared/submission-feedback';
+import { actionFeedback, submissionFeedbackError } from '@/components/ui/action-feedback';
+
+import React, { useState, useEffect, useRef, useTransition, useCallback } from 'react';
 import { CheckCircle2, CircleAlert, ClipboardCheck, ExternalLink, ImageIcon, FileText, LoaderCircle, MessageSquareText, Minus, Plus, Trash2, Upload, X } from 'lucide-react';
 import { RequesterPageHeader, RequesterSection, RequesterFieldError, TrackRequestsLink, requesterFieldClass, requesterPrimaryClass, requesterSecondaryClass } from '@/components/requesting/RequesterUI';
 import { useRouter } from 'next/navigation';
@@ -9,6 +13,12 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Role } from '@prisma/client';
 import { AuthUser } from '@/shared/session';
+import { DraftSaveButton, RequestDraftWorkspace, useRequestDrafts } from '@/components/requesting/RequestDrafts';
+import { useUnsavedChanges, useUnsavedForm } from '@/components/ui/UnsavedChanges';
+import RequestTemplates from '@/components/requesting/RequestTemplates';
+import type { RequestDraftPayload } from '@/validation/request-draft.schema';
+import { REQUEST_ITEM_CATEGORIES } from '@/validation/request-draft.schema';
+import styles from '@/components/requesting/request-new.module.css';
 
 interface PurchaseItemState {
   id: string;
@@ -49,16 +59,7 @@ function itemValidationMessages(errors: ZodFormErrors['items'], index: number): 
   });
 }
 
-const ITEM_CATEGORIES = [
-  'Monitors & Displays',
-  'Cables & Connectors (HDMI, VGA, LAN)',
-  'Desktop Computers & Laptops',
-  'Peripherals (Mouse, Keyboard, Webcam)',
-  'Printers, Scanners & Consumables',
-  'Networking Equipment (Switches, Routers)',
-  'Office Supplies & Stationery',
-  'Other / Custom Item',
-];
+const ITEM_CATEGORIES: readonly string[] = REQUEST_ITEM_CATEGORIES;
 
 const parseStoredItems = (payload: unknown): PurchaseItemState[] => {
   if (!Array.isArray(payload)) return [];
@@ -95,6 +96,10 @@ const formatFileSize = (bytes: number | null) => {
 export default function NewPurchaseRequestPage() {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const supportToolsRef = useRef<HTMLDetailsElement>(null);
+  const supportPreferenceReadyRef = useRef<string | null>(null);
+  const [templateInventory, setTemplateInventory] = useState({ count: 0, hasMore: false, loading: true });
+  const revealSupportTools = useCallback(() => { if (supportToolsRef.current) supportToolsRef.current.open = true; }, []);
 
   const [activeUser, setActiveUser] = useState<AuthUser | null>(null);
   const [userLoading, setUserLoading] = useState<boolean>(true);
@@ -102,6 +107,7 @@ export default function NewPurchaseRequestPage() {
   const [sourceDeclineId, setSourceDeclineId] = useState<string | null>(null);
   const [evaluatorFeedback, setEvaluatorFeedback] = useState<ReturnFeedbackState | null>(null);
   const [correctionLoadFailed, setCorrectionLoadFailed] = useState(false);
+  const [submissionRecorded, setSubmissionRecorded] = useState(false);
   const allowedTemplateNavigationRef = useRef<string | null>(null);
 
   // Form States
@@ -113,15 +119,55 @@ export default function NewPurchaseRequestPage() {
   const [attachedFileIsImage, setAttachedFileIsImage] = useState(false);
   const [memoPreviewUrl, setMemoPreviewUrl] = useState<string | null>(null);
   const [uploadingFile, setUploadingFile] = useState<boolean>(false);
+  const [templateBusy, setTemplateBusy] = useState(false);
   const memoFileInputRef = useRef<HTMLInputElement>(null);
 
   const [items, setItems] = useState<PurchaseItemState[]>([
     { id: 'item-1', category: 'Monitors & Displays', specs: '', quantity: 1 },
   ]);
 
+  const [submissionIssue, setSubmissionIssue] = useState<SubmissionIssue | null>(null);
   const [systemError, setSystemError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<ZodFormErrors | null>(null);
   const errorBannerRef = useRef<HTMLDivElement>(null);
+
+  const restoreDraft = useCallback((saved: RequestDraftPayload | null) => {
+    setItems(saved ? saved.items.map((item, index) => ({ ...item, id: `draft-item-${index + 1}` })) : [
+      { id: 'item-1', category: 'Monitors & Displays', specs: '', quantity: 1 },
+    ]);
+    setJustification(saved?.justification ?? '');
+    setIsDirectPoBypass(saved?.isDirectPoBypass ?? false);
+    setAdminProofFilePath(saved?.adminProofFilePath ?? '');
+    setAttachedFileName(saved?.attachedFileName ?? null);
+    setAttachedFileSize(saved?.attachedFileSize ?? null);
+    setAttachedFileIsImage(saved?.attachedFileIsImage ?? false);
+    setMemoPreviewUrl(null);
+    if (memoFileInputRef.current) memoFileInputRef.current.value = '';
+    setSystemError(null); setSubmissionIssue(null); setFieldErrors(null);
+  }, []);
+  const draftsEnabled = !userLoading && activeUser?.role === Role.Requesting_Office && !returnedRequestId && !sourceDeclineId && !correctionLoadFailed;
+  const requestPayload: RequestDraftPayload = {
+    items: items.map(({ category, specs, quantity }) => ({ category, specs, quantity })),
+    justification, isDirectPoBypass, adminProofFilePath, attachedFileName, attachedFileSize, attachedFileIsImage,
+  };
+  const drafts = useRequestDrafts(draftsEnabled, requestPayload, restoreDraft);
+  const supportPreferenceKey = activeUser ? `cpats:request-tools:${activeUser.id}:${activeUser.departmentId}` : null;
+  useEffect(() => {
+    supportPreferenceReadyRef.current = null;
+    const tools = supportToolsRef.current;
+    if (!draftsEnabled || !tools || !supportPreferenceKey) return;
+    try { tools.open = localStorage.getItem(supportPreferenceKey) === 'open'; }
+    catch { /* Storage may be unavailable; first use stays collapsed. */ }
+    supportPreferenceReadyRef.current = supportPreferenceKey;
+  }, [draftsEnabled, supportPreferenceKey]);
+
+  const rememberSupportToggle = (event: React.SyntheticEvent<HTMLDetailsElement>) => {
+    if (!supportPreferenceKey || supportPreferenceReadyRef.current !== supportPreferenceKey) return;
+    try { localStorage.setItem(supportPreferenceKey, event.currentTarget.open ? 'open' : 'closed'); }
+    catch { /* The disclosure remains usable without browser storage. */ }
+  };
+  const guard = useUnsavedForm(returnedRequestId || sourceDeclineId || 'ordinary', requestPayload, { enabled: !userLoading && activeUser?.role === Role.Requesting_Office && !correctionLoadFailed && !draftsEnabled && !submissionRecorded, blocked: isPending || uploadingFile });
+  const draftNavigation = useUnsavedChanges(drafts.dirty, { enabled: draftsEnabled && !submissionRecorded, blocked: isPending || uploadingFile || templateBusy || drafts.busy, confirm: drafts.requestLeave, allowUnload: drafts.allowUnload });
 
   useEffect(() => {
     if (systemError) errorBannerRef.current?.focus();
@@ -232,7 +278,7 @@ export default function NewPurchaseRequestPage() {
       return;
     }
 
-    setSystemError(null);
+    setSystemError(null); setSubmissionIssue(null);
     clearMemoAttachment();
     setUploadingFile(true);
     setAttachedFileName(file.name);
@@ -308,12 +354,13 @@ export default function NewPurchaseRequestPage() {
   const totalPhysicalUnits = items.reduce((sum, item) => sum + (item.quantity || 0), 0);
 
   const discardCorrection = () => {
-    window.location.assign('/dashboard/pr/new');
+    guard.request(() => window.location.assign('/dashboard/pr/new'));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSystemError(null);
+    if (templateBusy || (draftsEnabled && (drafts.busy || drafts.loading || drafts.unavailable))) return;
+    setSystemError(null); setSubmissionIssue(null);
     setFieldErrors(null);
 
     if (!activeUser || activeUser.role !== Role.Requesting_Office) {
@@ -341,8 +388,10 @@ export default function NewPurchaseRequestPage() {
     });
 
     startTransition(async () => {
+      let committed = false;
       try {
         const payload = {
+          ...(draftsEnabled && drafts.active ? { draftId: drafts.active.id, draftVersion: drafts.active.version } : {}),
           ...(returnedRequestId && { prId: returnedRequestId }),
           justification,
           isDirectPoBypass,
@@ -361,14 +410,18 @@ export default function NewPurchaseRequestPage() {
 
         const result = await response.json();
 
-        if (!response.ok) {
+        if (!response.ok || result.success === false) {
           if (response.status === 422 && result.errors) {
             setFieldErrors(result.errors);
-            throw new Error('Please review highlighted fields before proceeding.');
+            throw new SubmissionResponseError(response.status, 'Please review highlighted fields before proceeding.');
           }
-          throw new Error(result.error || 'A system exception occurred while submitting your request.');
+          throw new SubmissionResponseError(response.status, result.error || 'A system exception occurred while submitting your request.');
         }
 
+        committed = true;
+        guard.markClean(); draftNavigation.clear(); drafts.markSubmitted(); setSubmissionRecorded(true);
+        actionFeedback(result.replayed ? 'Request already submitted' : returnedRequestId ? 'Correction submitted' : 'Request submitted',
+          result.replayed ? 'The original submission was already saved. Find the same request in Track Requests.' : `Request ${result.data?.id || returnedRequestId || ''} was sent to Business Office review.`);
         // Transient presentation feedback only; success follows the server response.
         try {
           sessionStorage.setItem('cpats:request-submitted', JSON.stringify({
@@ -381,14 +434,17 @@ export default function NewPurchaseRequestPage() {
         router.refresh();
         router.push('/dashboard/pr/track');
       } catch (err: unknown) {
-        setSystemError(err instanceof Error ? err.message : 'An unexpected exception occurred.');
+        setSubmissionIssue({ ...describeSubmissionIssue(err, committed), reference: returnedRequestId || drafts.active?.id || undefined });
+        if (!committed) submissionFeedbackError(err);
+        else actionFeedback('Saved; refresh needed', 'Your action was recorded. Refresh the workspace to see the latest queue.', 'info');
+        if (!committed) setSystemError(err instanceof Error ? err.message : 'An unexpected exception occurred.');
       }
     });
   };
 
   if (userLoading) {
     return (
-      <div role="status" className="min-h-[60vh] flex flex-col items-center justify-center space-y-3 font-sans">
+      <div role="status" className="min-h-[60dvh] flex flex-col items-center justify-center space-y-3 font-sans">
         <div className="w-8 h-8 border-3 border-emerald-700 border-t-transparent rounded-full animate-spin" />
         <span className="text-xs font-semibold text-slate-500 tracking-wide">
           Loading Department Workspace…
@@ -446,10 +502,19 @@ export default function NewPurchaseRequestPage() {
     : 'Your request goes to the Business Office for review and recording.';
 
   return (
-    <main className="mx-auto w-full max-w-[1920px] px-4 py-6 pb-36 text-slate-900 sm:px-6 sm:py-8 sm:pb-36 lg:px-8 lg:pb-10">
-      <RequesterPageHeader title={modeTitle} description={returnedRequestId ? 'Use the evaluator’s feedback to revise your saved details, then resubmit the same request.' : sourceDeclineId ? 'Review the saved details and feedback before creating a new request.' : 'Tell us what your department needs and why. You can check your details before submitting.'} department={`${activeUser.departmentName} (${activeUser.departmentCode})`} action={<TrackRequestsLink />} />
+    <main className={`requester-workspace mx-auto w-full text-slate-900 ${styles.page}`}>
+      <RequesterPageHeader waveBackground title={modeTitle} description={returnedRequestId ? 'Use the evaluator’s feedback to revise your saved details, then resubmit the same request.' : sourceDeclineId ? 'Review the saved details and feedback before creating a new request.' : 'Tell us what your department needs and why. You can check your details before submitting.'} department={`${activeUser.departmentName} (${activeUser.departmentCode})`} action={<TrackRequestsLink />} />
 
-      {systemError && (
+      {draftsEnabled && <details ref={supportToolsRef} className={styles.tools} onToggle={rememberSupportToggle}>
+        <summary title="Drafts & templates"><span aria-hidden="true" className={styles.toolsToggle}><Plus className="size-4" /></span><span className={styles.toolsLabel}>Drafts ({drafts.loading ? '…' : `${drafts.drafts.length}${drafts.nextPage !== null ? '+' : ''}`}) · Templates ({templateInventory.loading ? '…' : `${templateInventory.count}${templateInventory.hasMore ? '+' : ''}`})</span><span role="status" className={styles.draftStatus} title={drafts.active ? `Last saved ${new Date(drafts.active.updatedAt).toLocaleString('en-PH')}` : undefined}>{drafts.loading ? 'Loading…' : drafts.dirty ? 'Unsaved changes' : drafts.active ? 'Draft saved' : 'Not yet saved'}</span></summary>
+        <div className={styles.support}>
+        <RequestDraftWorkspace drafts={drafts} disabled={isPending || uploadingFile || templateBusy} onAttention={revealSupportTools} />
+        <RequestTemplates payload={{ items: items.map(({ category, specs, quantity }) => ({ category, specs, quantity })), justification, isDirectPoBypass, adminProofFilePath, attachedFileName, attachedFileSize, attachedFileIsImage }} disabled={isPending || uploadingFile || drafts.busy || drafts.loading || drafts.unavailable || !!drafts.pendingOpen || !!drafts.pendingRemove} onUse={drafts.requestTemplate} onBusyChange={setTemplateBusy} onAttention={revealSupportTools} onInventoryChange={setTemplateInventory} />
+        </div>
+      </details>}
+
+      <SubmissionFeedback issue={submissionIssue} />
+      {systemError && (!submissionIssue || systemError !== submissionIssue.message || submissionIssue.kind === 'validation') && (
         <div ref={errorBannerRef} role="alert" tabIndex={-1} className="mb-6 flex scroll-mt-36 items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm leading-6 text-rose-900 focus:outline-2 focus:outline-rose-700">
           <CircleAlert className="mt-1 size-5 shrink-0" aria-hidden="true" />
           <div className="min-w-0 flex-1"><p className="font-semibold">Please review your request</p><p className="break-words">{systemError}</p>
@@ -478,8 +543,8 @@ export default function NewPurchaseRequestPage() {
         </section>
       )}
 
-      <form onSubmit={handleSubmit} className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_340px]" aria-busy={isPending}>
-        <div className="min-w-0 space-y-6">
+      <form onSubmit={handleSubmit} className={`grid min-w-0 items-start ${styles.form}`} aria-busy={isPending}>
+        <fieldset disabled={templateBusy || (draftsEnabled && (drafts.busy || drafts.loading))} className="min-w-0 space-y-6">
           <RequesterSection id="requested-items" number="1" title="Requested items" description="List each item, its specifications, and the quantity your department needs.">
             <div className="space-y-4">
               {items.map((item, index) => {
@@ -487,20 +552,20 @@ export default function NewPurchaseRequestPage() {
                 const nameError = itemValidationMessage(fieldErrors?.items, index, 'itemName');
                 const quantityError = itemValidationMessage(fieldErrors?.items, index, 'quantity');
                 return (
-                  <fieldset key={item.id} className="min-w-0 rounded-lg border border-slate-200 bg-slate-50/60 p-4">
+                  <fieldset key={item.id} className={`min-w-0 rounded-lg border border-slate-200 bg-slate-50/60 ${styles.item}`}>
                     <legend className="px-1 text-sm font-semibold text-slate-700">Item {index + 1}</legend>
                     <div className="mb-4 flex items-center justify-between gap-3">
                       <span className="text-xs text-slate-600">Item details</span>
                       <button type="button" onClick={() => removeItemRow(item.id)} disabled={items.length === 1} aria-label={`Remove item ${index + 1}`} title={items.length === 1 ? 'Keep at least one item in your request' : 'Remove this item'} className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-rose-800 hover:bg-rose-50 disabled:cursor-not-allowed disabled:text-slate-500"><Trash2 className="size-4" aria-hidden="true" />Remove</button>
                     </div>
-                    <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_164px]">
+                    <div className={`min-w-0 ${styles.itemGrid}`}>
                       <div className="min-w-0">
                         <label htmlFor={`${item.id}-category`} className="mb-2 block text-sm font-medium text-slate-800">Category</label>
                         <select id={`${item.id}-category`} value={item.category} onChange={(e) => handleItemChange(item.id, 'category', e.target.value)} className={requesterFieldClass}>{ITEM_CATEGORIES.map((cat) => <option key={cat} value={cat}>{cat}</option>)}</select>
                       </div>
                       <div className="min-w-0">
                         <label htmlFor={`${item.id}-quantity`} className="mb-2 block text-sm font-medium text-slate-800">Quantity <span className="text-rose-700">*</span></label>
-                        <div className="flex h-[50px] w-fit max-w-full items-center overflow-hidden rounded-lg border border-slate-300 bg-white focus-within:ring-2 focus-within:ring-emerald-700/15">
+                        <div className={`overflow-hidden rounded-lg border border-slate-300 bg-white focus-within:ring-2 focus-within:ring-emerald-700/15 ${styles.quantity}`}>
                           <button type="button" onClick={() => adjustQuantity(item.id, -1)} aria-label={`Decrease quantity for item ${index + 1}`} className="grid h-full w-11 shrink-0 place-items-center text-slate-700 hover:bg-slate-100"><Minus className="size-4" aria-hidden="true" /></button>
                           <input id={`${item.id}-quantity`} type="number" min={1} required value={item.quantity || ''} onChange={(e) => handleItemChange(item.id, 'quantity', e.target.value)} aria-invalid={Boolean(quantityError)} aria-describedby={quantityError ? `${item.id}-error` : undefined} className="h-full w-16 min-w-0 border-x border-slate-200 bg-white px-1 text-center text-sm font-semibold tabular-nums outline-none" />
                           <button type="button" onClick={() => adjustQuantity(item.id, 1)} aria-label={`Increase quantity for item ${index + 1}`} className="grid h-full w-11 shrink-0 place-items-center text-slate-700 hover:bg-slate-100"><Plus className="size-4" aria-hidden="true" /></button>
@@ -564,10 +629,11 @@ export default function NewPurchaseRequestPage() {
               </div>
             )}
           </RequesterSection>
-        </div>
+        </fieldset>
 
-        <aside aria-labelledby="request-summary-title" className="min-w-0 lg:sticky lg:top-36">
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs sm:p-6">
+        <aside aria-labelledby="request-summary-title" className={`min-w-0 ${styles.summary}`}>
+          <div className={`rounded-xl border border-slate-200 bg-white p-5 shadow-xs sm:p-6 ${styles.summaryCard}`}>
+            <div className={styles.summaryBody}>
             <div className="flex items-center gap-2"><ClipboardCheck className="size-5 text-emerald-800" aria-hidden="true" /><h2 id="request-summary-title" className="text-base font-semibold text-slate-950">Request summary</h2></div>
             <p className="mt-2 text-sm leading-6 text-slate-600">Check your items and approval details before submitting.</p>
             <dl className="mt-5 grid grid-cols-2 gap-4 border-y border-slate-200 py-4"><div><dt className="text-xs text-slate-600">Line items</dt><dd className="mt-1 text-2xl font-semibold tabular-nums text-slate-900">{items.length}</dd></div><div><dt className="text-xs text-slate-600">Total units</dt><dd className="mt-1 text-2xl font-semibold tabular-nums text-slate-900">{totalPhysicalUnits}</dd></div></dl>
@@ -575,12 +641,23 @@ export default function NewPurchaseRequestPage() {
             <div className="mt-5 border-t border-slate-200 pt-4"><p className="text-xs font-medium text-slate-600">Request type</p><p className="mt-1 text-sm font-medium text-slate-900">{isDirectPoBypass ? 'Executive pre-approved memo' : 'Standard department request'}</p>{isDirectPoBypass && <p className={`mt-2 flex items-center gap-2 text-xs ${adminProofFilePath ? 'text-emerald-800' : 'text-amber-900'}`}>{adminProofFilePath ? <CheckCircle2 className="size-4 shrink-0" aria-hidden="true" /> : <CircleAlert className="size-4 shrink-0" aria-hidden="true" />}{uploadingFile ? 'Document upload in progress' : adminProofFilePath ? 'Approval document attached' : 'Approval document required'}</p>}</div>
             <div className="mt-5 rounded-lg bg-emerald-50 p-3.5"><h3 className="text-sm font-semibold text-emerald-950">What happens next</h3><p className="mt-1 text-sm leading-6 text-emerald-900">{nextStep}</p></div>
             <details className="mt-4 text-sm"><summary className="cursor-pointer py-2 font-medium text-slate-700">About the review process</summary><ol className="mt-2 space-y-3 border-l border-slate-200 pl-4 text-sm leading-6 text-slate-600"><li><strong className="font-medium text-slate-900">Requesting Office</strong><br />Specifications and justification are submitted.</li><li><strong className="font-medium text-slate-900">Business Office</strong><br />Item necessity and budget are checked.</li><li><strong className="font-medium text-slate-900">Administration</strong><br />Executive authorization is recorded.</li><li><strong className="font-medium text-slate-900">Purchasing and Receiving</strong><br />Purchase order, financial release, and receiving are recorded.</li></ol></details>
-            <div className="mt-5 hidden space-y-2 border-t border-slate-200 pt-5 lg:block"><button type="submit" disabled={isPending || uploadingFile} className={`${requesterPrimaryClass} w-full`}>{isPending && <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />}{isPending ? returnedRequestId ? 'Resubmitting…' : 'Submitting…' : submitLabel}</button>{returnedRequestId || sourceDeclineId ? <button type="button" onClick={discardCorrection} className={`${requesterSecondaryClass} w-full text-rose-800`}>Discard changes and start new</button> : <Link href="/dashboard/pr/track" className={`${requesterSecondaryClass} w-full`}>Cancel and return to requests</Link>}</div>
+            </div>
+            <div className={`mt-5 hidden shrink-0 space-y-2 border-t border-slate-200 pt-5 lg:block ${styles.summaryActions}`}>
+              {draftsEnabled && <DraftSaveButton drafts={drafts} disabled={isPending || uploadingFile || templateBusy} className="w-full" />}
+              <button type="submit" disabled={isPending || uploadingFile || templateBusy || (draftsEnabled && (drafts.busy || drafts.loading || drafts.unavailable))} className={`${requesterPrimaryClass} w-full`}>{isPending && <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />}{isPending ? returnedRequestId ? 'Resubmitting…' : 'Submitting…' : submitLabel}</button>
+              {returnedRequestId || sourceDeclineId ? <button type="button" onClick={discardCorrection} className={`${requesterSecondaryClass} w-full text-rose-800`}>Discard changes and start new</button> : <Link href="/dashboard/pr/track" className={`${requesterSecondaryClass} w-full`}>Cancel and return to requests</Link>}
+            </div>
           </div>
         </aside>
 
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-4px_16px_rgba(15,23,42,0.04)] lg:hidden">
-          <div className="mx-auto max-w-7xl"><p className="mb-2 text-xs text-slate-600">{items.length} {items.length === 1 ? 'item' : 'items'} · {totalPhysicalUnits} {totalPhysicalUnits === 1 ? 'unit' : 'units'}</p><div className="flex flex-wrap gap-2">{returnedRequestId || sourceDeclineId ? <button type="button" onClick={discardCorrection} className={`${requesterSecondaryClass} text-rose-800`}>Discard</button> : <Link href="/dashboard/pr/track" className={requesterSecondaryClass}>Cancel</Link>}<button type="submit" disabled={isPending || uploadingFile} className={`${requesterPrimaryClass} min-w-0 flex-1 px-3`}>{isPending && <LoaderCircle className="size-4 shrink-0 animate-spin" aria-hidden="true" />}{isPending ? returnedRequestId ? 'Resubmitting…' : 'Submitting…' : returnedRequestId ? 'Resubmit request' : 'Submit request'}</button></div></div>
+        <div className={`fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white lg:hidden ${styles.mobileActions}`}>
+          <div className="mx-auto max-w-7xl"><p className="mb-2 text-xs text-slate-600">{items.length} {items.length === 1 ? 'item' : 'items'} · {totalPhysicalUnits} {totalPhysicalUnits === 1 ? 'unit' : 'units'}</p>
+            <div className="flex flex-wrap gap-2">
+              {returnedRequestId || sourceDeclineId ? <button type="button" onClick={discardCorrection} className={`${requesterSecondaryClass} text-rose-800`}>Discard</button> : <DraftSaveButton drafts={drafts} disabled={isPending || uploadingFile || templateBusy} className="min-w-0 flex-1 px-2" />}
+              <button type="submit" disabled={isPending || uploadingFile || templateBusy || (draftsEnabled && (drafts.busy || drafts.loading || drafts.unavailable))} className={`${requesterPrimaryClass} min-w-0 flex-1 px-3`}>{isPending && <LoaderCircle className="size-4 shrink-0 animate-spin" aria-hidden="true" />}{isPending ? returnedRequestId ? 'Resubmitting…' : 'Submitting…' : returnedRequestId ? 'Resubmit request' : 'Submit request'}</button>
+            </div>
+            {!returnedRequestId && !sourceDeclineId && <Link href="/dashboard/pr/track" className="mt-1 block py-1 text-center text-xs font-medium text-slate-600 underline underline-offset-2">Cancel and return to requests</Link>}
+          </div>
         </div>
       </form>
     </main>

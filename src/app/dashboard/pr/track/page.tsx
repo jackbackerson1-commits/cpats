@@ -1,12 +1,16 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useTransition } from 'react';
-import { ArrowLeft, Check, CheckCircle2, CircleAlert, ClipboardList, FilePlus2, X } from 'lucide-react';
+import { ArrowLeft, Check, CheckCircle2, CircleAlert, CircleX, Clock3, ClipboardList, FilePlus2, X } from 'lucide-react';
 import { RequesterPageHeader, requesterPrimaryClass } from '@/components/requesting/RequesterUI';
+import { QueueFilters, useQueueFilters, WaitingTime } from '@/components/ui/QueueFilters';
+import { matchesQueueFilters } from '@/shared/queue-insights';
 import Link from 'next/link';
 import { Role, PRStatus } from '@prisma/client';
 import { AuthUser } from '@/shared/session';
 import { deriveItemSummaryTitle } from '@/components/ui/WorkflowUI';
+import { RequestAuditTimeline } from '@/components/requesting/RequestAuditTimeline';
+import styles from '@/components/requesting/request-track.module.css';
 
 // Tracking-only presentation: selections and actions share the institutional accent.
 const trackingRecordActionClass = 'inline-flex min-h-11 max-w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold leading-5 text-emerald-900 transition hover:border-emerald-700 hover:bg-emerald-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700';
@@ -100,35 +104,35 @@ function mapStatusToBadge(status: PRStatus): {
     case PRStatus.Pending_Business_Approval:
       return {
         label: 'Pending Budget Check',
-        badgeClass: 'bg-slate-50 text-slate-700 border-slate-200',
+        badgeClass: 'bg-indigo-50 text-indigo-900 border-indigo-100',
         dotClass: 'bg-emerald-700',
         rowAccent: '',
       };
     case PRStatus.Pending_Admin_Approval:
       return {
         label: 'Pending Executive Sign-off',
-        badgeClass: 'bg-slate-50 text-slate-700 border-slate-200',
+        badgeClass: 'bg-indigo-50 text-indigo-900 border-indigo-100',
         dotClass: 'bg-emerald-700',
         rowAccent: '',
       };
     case PRStatus.Approved_Awaiting_PO:
       return {
         label: 'Approved — Awaiting PO',
-        badgeClass: 'bg-slate-50 text-slate-700 border-slate-200',
+        badgeClass: 'bg-emerald-50 text-emerald-900 border-emerald-200',
         dotClass: 'bg-emerald-700',
         rowAccent: '',
       };
     case PRStatus.Awaiting_Check_Issuance:
       return {
         label: 'Financial Clearance Pending',
-        badgeClass: 'bg-slate-50 text-slate-700 border-slate-200',
+        badgeClass: 'bg-indigo-50 text-indigo-900 border-indigo-100',
         dotClass: 'bg-emerald-700',
         rowAccent: '',
       };
     case PRStatus.Ready_for_Purchase:
       return {
         label: 'Ready for Purchase',
-        badgeClass: 'bg-slate-50 text-slate-700 border-slate-200',
+        badgeClass: 'bg-indigo-50 text-indigo-900 border-indigo-100',
         dotClass: 'bg-emerald-700',
         rowAccent: '',
       };
@@ -174,6 +178,24 @@ const STAGE_ORDER: PRStatus[] = [
   PRStatus.Received_and_Closed,
 ];
 
+const APPROVED_STATES: PRStatus[] = [PRStatus.Approved_Awaiting_PO, PRStatus.Awaiting_Check_Issuance, PRStatus.Ready_for_Purchase, PRStatus.Received_and_Closed];
+
+function matchesStatusFilter(status: PRStatus, filter: string) {
+  switch (filter) {
+    case 'ACTION_REQUIRED': return status === PRStatus.Returned_for_Correction;
+    case 'IN_PROGRESS': return status !== PRStatus.Received_and_Closed && status !== PRStatus.Declined && status !== PRStatus.Returned_for_Correction;
+    case 'APPROVED': return APPROVED_STATES.includes(status);
+    case 'DECLINED': return status === PRStatus.Declined;
+    case 'CLOSED': return status === PRStatus.Received_and_Closed;
+    default: return true;
+  }
+}
+
+function StatusIcon({ status }: { status: PRStatus }) {
+  const Icon = status === PRStatus.Returned_for_Correction ? CircleAlert : status === PRStatus.Declined ? CircleX : APPROVED_STATES.includes(status) ? CheckCircle2 : Clock3;
+  return <Icon className="size-4 shrink-0" aria-hidden="true" />;
+}
+
 function getStageIndex(status: PRStatus): number {
   const idx = STAGE_ORDER.indexOf(status);
   return idx === -1 ? 0 : idx;
@@ -182,7 +204,7 @@ function getStageIndex(status: PRStatus): number {
 // ─── Loading Skeleton ─────────────────────────────────────────────────────────
 function LoadingLedger() {
   return (
-    <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-4 font-sans">
+    <div className="min-h-[60dvh] flex flex-col items-center justify-center space-y-4 font-sans">
       <div
         className="w-10 h-10 rounded-full border-[3px] border-[#064E3B] border-t-transparent animate-spin"
         role="status"
@@ -203,7 +225,7 @@ function LoadingLedger() {
 // ─── Access Denied State ──────────────────────────────────────────────────────
 function AccessDenied() {
   return (
-    <div className="min-h-[60vh] flex items-center justify-center p-4 font-sans">
+    <div className="min-h-[60dvh] flex items-center justify-center p-4 font-sans">
       <div className="max-w-sm w-full bg-white border border-rose-200 rounded-2xl shadow-sm p-6 text-center space-y-4">
         <div className="w-14 h-14 rounded-full bg-rose-50 border border-rose-100 flex items-center justify-center mx-auto">
           <span className="text-rose-600 text-xl font-semibold">✕</span>
@@ -342,11 +364,11 @@ function InspectionPanel({
       <section
         aria-labelledby="inspection-title"
         aria-describedby="inspection-description"
-        className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+        className={`w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ${styles.inspection}`}
       >
         
         {/* ─── Modal Header ─── */}
-        <div className="shrink-0 border-b border-slate-200 bg-white px-4 py-4 sm:px-6 sm:py-5">
+        <div className={`shrink-0 border-b border-slate-200 bg-white ${styles.inspectionHead}`}>
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-1 min-w-0">
               <button
@@ -355,7 +377,7 @@ function InspectionPanel({
                 className="mb-3 inline-flex min-h-11 items-center gap-2 rounded-lg px-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
               >
                 <ArrowLeft className="size-4 shrink-0" aria-hidden="true" />
-                Back to requests
+                <span className={styles.backLabel}>Back to requests</span>
               </button>
               <h1
                 id="inspection-title"
@@ -363,7 +385,7 @@ function InspectionPanel({
               >
                 Request details
               </h1>
-              <p className="break-all text-xs font-mono leading-5 text-slate-600">
+              <p title={node.id} className="break-all text-xs font-mono leading-5 text-slate-600">
                 {node.id}
               </p>
               <p id="inspection-description" className="sr-only">
@@ -374,7 +396,7 @@ function InspectionPanel({
         </div>
 
         {/* ─── Detail Body ─── */}
-        <div className="space-y-6 px-4 py-5 sm:px-6 sm:py-6">
+        <div className={`space-y-6 ${styles.inspectionBody}`}>
 
           {/* Evaluator Feedback Alert (Returned / Declined) */}
           {(isReturned || isDeclined) && (
@@ -460,9 +482,9 @@ function InspectionPanel({
                 {itemTitle}
               </h2>
               <span
-                className={`inline-flex max-w-full items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs font-medium leading-5 ${badge.badgeClass}`}
+                className={`inline-flex max-w-full items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs font-medium leading-5 ${badge.badgeClass}`} data-request-status="true"
               >
-                <span className={`size-1.5 shrink-0 rounded-full ${badge.dotClass}`} />
+                <StatusIcon status={node.status} />
                 {badge.label}
               </span>
             </div>
@@ -512,12 +534,14 @@ function InspectionPanel({
             <h2 className="text-base font-semibold text-slate-950">
               Decision and progress history
             </h2>
-            <AuditTimeline logs={node.auditLogs || []} highlightedLogId={highlightedLogId} />
+            {node.status === PRStatus.Returned_for_Correction
+              ? <AuditTimeline logs={node.auditLogs || []} highlightedLogId={highlightedLogId} />
+              : <RequestAuditTimeline logs={node.auditLogs || []} highlightedLogId={highlightedLogId} statusBadge={mapStatusToBadge} />}
           </div>
         </div>
 
         {/* ─── Modal Footer ─── */}
-        <div className="shrink-0 border-t border-slate-200 bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 sm:px-6 sm:py-4">
+        <div className={`shrink-0 border-t border-slate-200 bg-white ${styles.inspectionFoot}`}>
           <button
             type="button"
             onClick={onBack}
@@ -547,15 +571,16 @@ function MobileRequisitionCard({
 
   return (
     <article
+      data-action-needed={isReturned}
       className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs"
     >
       <div className="p-4 space-y-3">
         {/* Card Header */}
         <div className="flex flex-wrap items-start justify-between gap-2">
           <span
-            className={`inline-flex max-w-full items-center gap-2 px-2.5 py-1.5 rounded-md text-xs font-medium leading-5 border ${badge.badgeClass}`}
+            className={`inline-flex max-w-full items-center gap-2 px-2.5 py-1.5 rounded-md text-xs font-medium leading-5 border ${badge.badgeClass}`} data-request-status="true"
           >
-            <span className={`size-1.5 shrink-0 rounded-full ${badge.dotClass}`} />
+            <StatusIcon status={req.status} />
             {badge.label}
           </span>
           <time className="text-[12px] font-medium text-slate-600 shrink-0">
@@ -567,6 +592,7 @@ function MobileRequisitionCard({
           </time>
         </div>
 
+        <WaitingTime record={req} />
         {/* Item Summary */}
         <div className="space-y-1">
           <h2 className="text-sm font-semibold text-slate-900 leading-snug break-words [overflow-wrap:anywhere]">
@@ -628,35 +654,22 @@ function MobileRequisitionCard({
 }
 
 // ─── Summary Statistics Bar ───────────────────────────────────────────────────
-function SummaryStatsBar({ requests }: { requests: DepartmentPRNode[] }) {
-  const stats = {
-    total: requests.length,
-    actionNeeded: requests.filter((r) => r.status === PRStatus.Returned_for_Correction).length,
-    inProgress: requests.filter(
-      (r) =>
-        r.status !== PRStatus.Received_and_Closed &&
-        r.status !== PRStatus.Declined &&
-        r.status !== PRStatus.Returned_for_Correction
-    ).length,
-    closed: requests.filter((r) => r.status === PRStatus.Received_and_Closed).length,
-  };
-
+function SummaryStatsBar({ requests, active, onFilter }: { requests: DepartmentPRNode[]; active: string; onFilter: (filter: string) => void }) {
+  const summaries = [
+    { id: 'ALL', label: 'Total requests', hint: 'Your department' },
+    { id: 'ACTION_REQUIRED', label: 'Action needed', hint: 'Returned for correction' },
+    { id: 'IN_PROGRESS', label: 'In progress', hint: 'Review & purchasing' },
+    { id: 'APPROVED', label: 'Approved', hint: 'Includes later stages' },
+    { id: 'DECLINED', label: 'Declined', hint: 'View office feedback' },
+    { id: 'CLOSED', label: 'Received & closed', hint: 'Completed requests' },
+  ];
   return (
-    <section aria-label="Request summary" className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-      <dl className="grid grid-cols-2 sm:grid-cols-4">
-        {[
-          { label: 'Total Filed', value: stats.total },
-          { label: 'Action Needed', value: stats.actionNeeded },
-          { label: 'In Progress', value: stats.inProgress },
-          { label: 'Completed', value: stats.closed },
-        ].map((stat, index) => (
-          <div key={stat.label} className={`min-w-0 px-4 py-4 sm:px-5 ${index > 1 ? 'border-t border-slate-200 sm:border-t-0' : ''} ${index % 2 ? 'border-l border-slate-200' : ''} ${index === 2 ? 'sm:border-l' : ''}`}>
-            <dt className="text-xs font-medium text-slate-600">{stat.label}</dt>
-            <dd className="mt-2 text-2xl font-semibold tabular-nums tracking-tight text-slate-950">{stat.value}</dd>
-          </div>
-        ))}
-      </dl>
-    </section>
+    <div role="group" aria-label="Request status filters" className={styles.stats}>
+      {summaries.map(({ id, label, hint }) => <button key={id} type="button" className={styles.stat} title={hint} aria-pressed={active === id} onClick={() => onFilter(id)}>
+        <span>{label}</span>
+        <span className={styles.statValue}>{requests.filter(request => matchesStatusFilter(request.status, id)).length}</span>
+      </button>)}
+    </div>
   );
 }
 
@@ -687,6 +700,8 @@ function RequisitionEmptyState({
         return 'There are no declined requisitions to review.';
       case 'IN_PROGRESS':
         return 'There are currently no requisitions undergoing review or purchasing.';
+      case 'APPROVED':
+        return 'No requests have reached approval or a later stage yet.';
       case 'CLOSED':
         return 'No requisitions have been marked as completed and closed yet.';
       default:
@@ -739,6 +754,7 @@ export default function RequestTrackingPage() {
 
   const [requests, setRequests] = useState<DepartmentPRNode[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [queueFilters, setQueueFilters] = useQueueFilters();
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [systemError, setSystemError] = useState<string | null>(null);
   const [submissionConfirmation, setSubmissionConfirmation] = useState<{ id: string; corrected: boolean } | null>(null);
@@ -840,6 +856,7 @@ export default function RequestTrackingPage() {
 
   // ─── Filtered Records ────────────────────────────────────────────────────────
   const filteredRequests = requests.filter((req) => {
+    if (!matchesQueueFilters({ ...req, department: req.department.name }, queueFilters)) return false;
     const q = searchQuery.toLowerCase().trim();
     const title = deriveItemSummaryTitle(req.itemsPayload, req.justification).toLowerCase();
     const matchesSearch =
@@ -848,38 +865,21 @@ export default function RequestTrackingPage() {
       req.id.toLowerCase().includes(q) ||
       req.justification.toLowerCase().includes(q);
 
-    if (statusFilter === 'ALL') return matchesSearch;
-    if (statusFilter === 'ACTION_REQUIRED')
-      return matchesSearch && req.status === PRStatus.Returned_for_Correction;
-    if (statusFilter === 'DECLINED')
-      return matchesSearch && req.status === PRStatus.Declined;
-    if (statusFilter === 'IN_PROGRESS')
-      return (
-        matchesSearch &&
-        req.status !== PRStatus.Received_and_Closed &&
-        req.status !== PRStatus.Declined &&
-        req.status !== PRStatus.Returned_for_Correction
-      );
-    if (statusFilter === 'CLOSED')
-      return matchesSearch && req.status === PRStatus.Received_and_Closed;
-    return matchesSearch; 
+    return matchesSearch && matchesStatusFilter(req.status, statusFilter);
   });
-
-  const returnedCount = requests.filter((r) => r.status === PRStatus.Returned_for_Correction).length;
-  const declinedCount = requests.filter((r) => r.status === PRStatus.Declined).length;
 
   return (
     <>
       {/* Page-level canvas with institutional background */}
-      <div className="relative min-h-screen bg-[#F8FAFC]">
+      <div className={`relative ${styles.canvas}`}>
         {/* DMC Crest Watermark */}
 
-        <main className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 font-sans antialiased text-slate-900 space-y-4 sm:space-y-6">
+        <main className={`requester-workspace mx-auto font-sans antialiased text-slate-900 ${styles.page}`}>
 
           {!activeInspectionNode && (
             <>
           {/* ─── Page Header ────────────────────────────────────────────────── */}
-          <RequesterPageHeader title="Track requests" description="Follow your department’s requests, review office feedback, and see what needs your attention." department={`${activeUser.departmentName} (${activeUser.departmentCode})`} action={<Link href="/dashboard/pr/new" className={requesterPrimaryClass}><FilePlus2 className="size-4 shrink-0" aria-hidden="true" />New request</Link>} />
+          <RequesterPageHeader waveBackground title="Track requests" description="Follow your department’s requests, review office feedback, and see what needs your attention." department={`${activeUser.departmentName} (${activeUser.departmentCode})`} action={<Link href="/dashboard/pr/new" className={requesterPrimaryClass}><FilePlus2 className="size-4 shrink-0" aria-hidden="true" />New request</Link>} />
           {submissionConfirmation && (
             <div role="status" className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950">
               <CheckCircle2 className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
@@ -909,67 +909,37 @@ export default function RequestTrackingPage() {
             </div>
           )}
 
-          {/* ─── Summary Stats ───────────────────────────────────────────────── */}
-          <SummaryStatsBar requests={requests} />
-
           {/* ─── Search & Filter Control Bar ────────────────────────────────── */}
-          <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5 space-y-4">
+          <div className={`rounded-xl border border-slate-200 bg-white space-y-4 ${styles.searchPanel}`}>
             <p className="text-sm font-semibold text-slate-950">Find a request</p>
-            {/* Search */}
-            <div className="relative">
-              <SearchIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-600 size-4 select-none pointer-events-none"/>
-              <input
-                type="search"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search by equipment name, reference ID, or justification…"
-                className="w-full min-w-0 h-11 pl-10 pr-12 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 placeholder:text-slate-500 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/15 outline-none transition"
-                aria-label="Search requisitions"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-0.5 top-1/2 grid size-11 -translate-y-1/2 place-items-center rounded-lg text-slate-600 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-emerald-700"
-                  aria-label="Clear search"
-                >
-                  <X className="size-4" aria-hidden="true" />
-                </button>
-              )}
+            <div className={styles.commandBar}>
+              {/* Search */}
+              <div className={`relative ${styles.searchField}`}>
+                <SearchIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-600 size-4 select-none pointer-events-none"/>
+                <input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search by equipment name, reference ID, or justification…"
+                  className="w-full min-w-0 h-11 pl-10 pr-12 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 placeholder:text-slate-500 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/15 outline-none transition"
+                  aria-label="Search requisitions"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-0.5 top-1/2 grid size-11 -translate-y-1/2 place-items-center rounded-lg text-slate-600 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-emerald-700"
+                    aria-label="Clear search"
+                  >
+                    <X className="size-4" aria-hidden="true" />
+                  </button>
+                )}
+              </div>
+              <SummaryStatsBar requests={requests} active={statusFilter} onFilter={setStatusFilter} />
             </div>
 
-            {/* Filter Pills */}
-            <div
-  className="flex flex-wrap items-center gap-1.5"
-  role="group"
-  aria-label="Status filters"
->
-  {[
-    { id: 'ALL', label: `All (${requests.length})` },
-    ...(returnedCount > 0
-      ? [{ id: 'ACTION_REQUIRED', label: `Action Needed (${returnedCount})` }]
-      : []),
-    { id: 'IN_PROGRESS', label: 'In Progress' },
-    { id: 'DECLINED', label: `Declined (${declinedCount})` },
-    { id: 'CLOSED', label: 'Received & Closed' },
-  ].map((pill) => (
-    <button
-      key={pill.id}
-      type="button"
-      onClick={() => setStatusFilter(pill.id)}
-      className={`inline-flex min-h-11 max-w-full items-center gap-2 rounded-lg border px-3.5 py-2 text-sm font-medium leading-5 transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 ${statusFilter === pill.id ? 'border-emerald-800 bg-emerald-800 text-white' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'}`}
-      aria-pressed={statusFilter === pill.id}
-    >
-      {pill.id === 'ACTION_REQUIRED' && (
-        <AlertTriangleIcon className="size-3.5 shrink-0" />
-      )}
-      {pill.id === 'DECLINED' && (
-        <FileTextIcon className="size-3.5 shrink-0" />
-      )}
-      <span>{pill.label}</span>
-    </button>
-  ))}
-</div>
+            <div className={styles.advanced}><QueueFilters records={requests.map(req => ({ ...req, department: req.department.name }))} value={queueFilters} onChange={setQueueFilters} onClear={() => { setSearchQuery(''); setStatusFilter('ALL'); }} /></div>
+            <p role="status" className="text-sm text-slate-600">{filteredRequests.length} of {requests.length} requests shown</p>
           </div>
             </>
           )}
@@ -993,6 +963,7 @@ export default function RequestTrackingPage() {
               onReset={() => {
                 setSearchQuery('');
                 setStatusFilter('ALL');
+                setQueueFilters({ from: '', to: '', department: '', status: '' });
               }}
             />
           ) : (
@@ -1000,7 +971,7 @@ export default function RequestTrackingPage() {
               {/* ═══════════════════════════════════════════════════════════════ */}
               {/* Phone and tablet: stacked request cards                       */}
               {/* ═══════════════════════════════════════════════════════════════ */}
-              <div className="space-y-3 xl:hidden">
+              <div className={`space-y-3 ${styles.cards}`}>
                 <p className="text-[12px] font-semibold text-slate-600 px-0.5">
                   Showing {filteredRequests.length} of {requests.length} requisitions
                 </p>
@@ -1016,7 +987,7 @@ export default function RequestTrackingPage() {
               {/* ═══════════════════════════════════════════════════════════════ */}
               {/* Desktop: request table when adequate width is available        */}
               {/* ═══════════════════════════════════════════════════════════════ */}
-              <div className="hidden xl:block overflow-hidden rounded-xl border border-slate-200 bg-white">
+              <div className={`overflow-hidden rounded-xl border border-slate-200 bg-white ${styles.register}`}>
                 {/* Table header context */}
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
                   <span className="text-[12px] font-semibold text-slate-600 tracking-normal">
@@ -1063,6 +1034,7 @@ export default function RequestTrackingPage() {
                         return (
                           <tr
                             key={req.id}
+                            data-action-needed={isReturned}
                             className={`transition-colors ${
                               isReturned
                                 ? 'bg-white hover:bg-slate-50'
@@ -1112,11 +1084,12 @@ export default function RequestTrackingPage() {
                             {/* Status Badge */}
                             <td className="px-5 py-5 align-top">
                               <span
-                                className={`inline-flex max-w-full items-center gap-2 px-2.5 py-1.5 rounded-md text-xs font-medium leading-5 border ${badge.badgeClass}`}
+                                className={`inline-flex max-w-full items-center gap-2 px-2.5 py-1.5 rounded-md text-xs font-medium leading-5 border ${badge.badgeClass}`} data-request-status="true"
                               >
-                                <span className={`size-1.5 shrink-0 rounded-full ${badge.dotClass}`} />
+                                <StatusIcon status={req.status} />
                                 {badge.label}
                               </span>
+                              <WaitingTime record={req} />
                             </td>
 
                             {/* Action Button */}
@@ -1124,6 +1097,7 @@ export default function RequestTrackingPage() {
                               <button
                                 type="button"
                                 onClick={() => openInspection(req)}
+                                title={isReturned ? 'View requested changes' : isDeclined ? 'View decline notice' : 'View details'}
                                 className={trackingRecordActionClass}
                               >
                                 {isReturned ? (
