@@ -15,6 +15,10 @@ export const CreateReceivingReportSchema = z.object({
     message: "Compliance Exception: A valid storage path link for the physical hardware photographic record is mandatory."
   }),
   remarks: z.string().optional()
+}).superRefine((data, ctx) => {
+  if (data.condition === 'Damaged' && (data.remarks ?? '').trim().length < 5) {
+    ctx.addIssue({ code: 'custom', path: ['remarks'], message: 'Describe the damage in the inspection remarks (at least 5 characters).' });
+  }
 });
 
 export type CreateReceivingReportInput = z.infer<typeof CreateReceivingReportSchema>;
