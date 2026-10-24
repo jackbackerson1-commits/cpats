@@ -7,6 +7,7 @@ import { PRStatus, Role } from '@prisma/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { BusinessEvaluationSchema } from '../src/validation/business.schema';
 import { BusinessVerificationDetails } from '../src/components/business/BusinessVerificationDetails';
+import * as workflowConflict from '../src/shared/workflow-conflict';
 
 const prId = '11111111-1111-4111-8111-111111111111';
 const actorId = 'business-reviewer';
@@ -43,6 +44,7 @@ function harness(options: { role?: Role; status?: PRStatus; adminReturn?: boolea
     'next/server': { NextResponse: { json: (body: Reply['body'], init?: { status: number }) => ({ body, status: init?.status ?? 200 }) } },
     '@prisma/client': { Role, PRStatus },
     '@/validation/business.schema': { BusinessEvaluationSchema },
+    '@/shared/workflow-conflict': workflowConflict,
     '@/shared/rbac': { authorizeRequest: async () => (options.role ?? Role.Business_Office) === Role.Business_Office ? { success: true, user: { id: actorId } } : { success: false, response: { status: 403, body: { success: false } } } },
     '@/shared/notifications': { dispatchNotificationForAuditLog: async (id: string) => { notifications.push(id); } },
     '@/shared/prisma': { prisma: { ...tx, $transaction: async (run: (client: typeof tx) => Promise<unknown>) => {

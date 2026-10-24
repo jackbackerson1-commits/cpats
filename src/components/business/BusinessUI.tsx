@@ -2,28 +2,32 @@
 
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { ArrowRight, Building2, Check, CheckCircle2, ChevronDown, ChevronRight, CircleAlert, ClipboardList, LoaderCircle, Search, Undo2, X } from 'lucide-react';
+import { QueueFilters, useQueueFilters, WaitingTime } from '@/components/ui/QueueFilters';
+import { matchesQueueFilters } from '@/shared/queue-insights';
 import type { QueueTask } from '@/components/ui/WorkflowUI';
+import waves from '@/components/requesting/requester-waves.module.css';
 
 export type { QueueTask } from '@/components/ui/WorkflowUI';
 
 // Local presentation primitives: other offices retain their existing components.
-export function PageShell({ children }: { children: React.ReactNode }) {
-  return <main className="mx-auto w-full max-w-[1920px] space-y-6 px-4 py-6 text-slate-900 sm:px-6 sm:py-8 lg:px-8">{children}</main>;
+export function PageShell({ children, compact = false, className = '' }: { children: React.ReactNode; compact?: boolean; className?: string }) {
+  const shellClass = compact ? 'business-evaluation-page mx-auto w-full text-slate-900' : 'mx-auto w-full max-w-[1920px] space-y-6 px-4 py-6 text-slate-900 sm:px-6 sm:py-8 lg:px-8';
+  return <main className={`business-portal-workspace ${shellClass} ${className}`}>{children}</main>;
 }
 
 export function StageHeader({ title, description, meta }: {
-  eyebrow?: string; title: string; description: string;
+  eyebrow?: string; title: string; description?: string;
   meta?: { label: string; value: string };
 }) {
   return (
-    <header className="border-b border-slate-200 pb-6">
+    <header className={`business-page-introduction ${waves.introduction}`}>
       <p className="mb-3 flex items-center gap-2 text-xs font-medium text-emerald-800">
         <Building2 className="size-4 shrink-0" aria-hidden="true" />Business Office
       </p>
       <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 max-w-2xl">
           <h1 className="text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">{title}</h1>
-          <p className="mt-2 text-sm leading-6 text-slate-600">{description}</p>
+          {description && <p className="mt-2 text-sm leading-6 text-slate-600">{description}</p>}
         </div>
         {meta && <dl className="min-w-0 sm:max-w-64 sm:text-right">
           <dt className="text-xs text-slate-600">{meta.label}</dt>
@@ -46,9 +50,15 @@ export function ErrorBanner({ children }: { children: React.ReactNode }) {
   </div>;
 }
 
-export function SuccessBanner({ children }: { children: React.ReactNode }) {
-  return <div role="status" className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-950">
-    <CheckCircle2 className="mt-1 size-5 shrink-0" aria-hidden="true" /><div className="min-w-0 break-words [overflow-wrap:anywhere]">{children}</div>
+export function SuccessBanner({ children, tone = 'success' }: { children: React.ReactNode; tone?: 'success' | 'warning' | 'decline' }) {
+  const colors = {
+    success: 'border-emerald-200 bg-emerald-50 text-emerald-950',
+    warning: 'border-amber-200 bg-amber-50 text-amber-800',
+    decline: 'border-rose-200 bg-rose-50 text-rose-800',
+  };
+  const Icon = tone === 'warning' ? Undo2 : tone === 'decline' ? X : CheckCircle2;
+  return <div role="status" className={`flex items-start gap-3 rounded-xl border p-4 text-sm leading-6 ${colors[tone]}`}>
+    <Icon className="mt-1 size-5 shrink-0" aria-hidden="true" /><div className="min-w-0 break-words [overflow-wrap:anywhere]">{children}</div>
   </div>;
 }
 
@@ -86,22 +96,25 @@ export function BusinessSection({ title, description, children, id }: {
 }
 
 export function ReviewWorkspace({ queueTitle, tasks, loading, emptyMessage, selectedId, onSelect,
-  selectionLabel = 'In review', selectedTaskLabel = 'Reviewing selected transaction', children,
+  selectionLabel = 'In review', selectedTaskLabel = 'Reviewing selected transaction', renderTaskDetails, children,
 }: {
   queueTitle: string; tasks: QueueTask[]; loading: boolean; emptyMessage: string; selectedId: string;
-  onSelect: (id: string) => void; selectionLabel?: string; selectedTaskLabel?: string; children: React.ReactNode;
+  onSelect: (id: string) => void; selectionLabel?: string; selectedTaskLabel?: string; renderTaskDetails?: (task: QueueTask) => React.ReactNode; children: React.ReactNode;
 }) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [filters, setFilters] = useQueueFilters();
+  const filtersActive = !!searchQuery || Object.values(filters).some(Boolean);
   const [queueExpanded, setQueueExpanded] = useState(false);
   const detailsRef = useRef<HTMLDivElement>(null);
   const queueId = useId();
   const currentTask = tasks.find((task) => task.id === selectedId);
   // Preserve the existing queue's search fields and matching rules.
   const filteredTasks = tasks.filter((task) => {
+    if (!matchesQueueFilters(task, filters)) return false;
     const q = searchQuery.toLowerCase().trim();
     if (!q) return true;
     return task.title.toLowerCase().includes(q) || task.subtitle.toLowerCase().includes(q) ||
-      task.id.toLowerCase().includes(q) || (task.justificationPreview && task.justificationPreview.toLowerCase().includes(q));
+      task.id.toLowerCase().includes(q) || task.department?.toLowerCase().includes(q) || (task.justificationPreview && task.justificationPreview.toLowerCase().includes(q));
   });
 
   const chooseTask = (id: string) => {
@@ -127,6 +140,8 @@ export function ReviewWorkspace({ queueTitle, tasks, loading, emptyMessage, sele
             {currentTask && <div className="xl:hidden">
               <p className="text-xs font-medium text-emerald-800">{selectionLabel}</p>
               <p className="mt-1 break-words text-sm font-medium leading-6 text-slate-900 [overflow-wrap:anywhere]">{currentTask.title}</p>
+              {renderTaskDetails && <p className="mt-2 break-words text-xs leading-5 text-emerald-800 [overflow-wrap:anywhere]">{currentTask.subtitle}</p>}
+              {renderTaskDetails?.(currentTask)}
               <button type="button" aria-expanded={queueExpanded} aria-controls={queueId} onClick={() => setQueueExpanded((v) => !v)} className="mt-2 inline-flex min-h-11 items-center gap-2 rounded-lg border border-slate-300 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">
                 {queueExpanded ? 'Hide request list' : 'Choose another request'}<ChevronDown className={`size-4 ${queueExpanded ? 'rotate-180' : ''}`} aria-hidden="true" />
               </button>
@@ -138,16 +153,19 @@ export function ReviewWorkspace({ queueTitle, tasks, loading, emptyMessage, sele
               <input type="search" aria-label={`Search ${queueTitle}`} placeholder="Search items, office, or reference" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className={`${inputClass()} pl-9 pr-12`} />
               {searchQuery && <button type="button" aria-label="Clear queue search" onClick={() => setSearchQuery('')} className="absolute right-1 top-1/2 grid size-11 -translate-y-1/2 place-items-center rounded-lg text-slate-600 hover:bg-slate-100"><X className="size-4" aria-hidden="true" /></button>}
             </div>
+            <div className="m-3"><details><summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold text-slate-700 focus-visible:outline-2 focus-visible:outline-emerald-700">Additional filters{Object.values(filters).some(Boolean) ? ' · applied' : ''}</summary><QueueFilters compact records={tasks} value={filters} onChange={setFilters} onClear={() => setSearchQuery('')} /></details>{currentTask && !filteredTasks.some(task => task.id === selectedId) && <p role="status" className="mt-3 text-xs leading-5 text-slate-600">The open record is outside these filters. Its form remains open.</p>}</div>
             <div className="max-h-96 overflow-y-auto overscroll-contain p-2 xl:max-h-[calc(100dvh-20rem)]">
               {loading ? <p role="status" className="flex items-center gap-2 px-3 py-8 text-sm text-slate-600"><LoaderCircle className="size-4 animate-spin" aria-hidden="true" />Loading requests…</p> : filteredTasks.length === 0 ? <div className="px-3 py-7 text-center">
                 <ClipboardList className="mx-auto size-7 text-slate-500" aria-hidden="true" />
-                <p className="mt-3 text-sm font-semibold text-slate-800">{searchQuery ? 'No matching records' : 'Queue clear'}</p>
-                <p className="mt-1 text-sm leading-6 text-slate-600">{searchQuery ? 'Try another reference, department, or item keyword.' : emptyMessage}</p>
+                <p className="mt-3 text-sm font-semibold text-slate-800">{filtersActive ? 'No matching records' : 'Queue clear'}</p>
+                <p className="mt-1 text-sm leading-6 text-slate-600">{filtersActive ? 'Adjust the filters or clear them to see the full queue.' : emptyMessage}</p>
               </div> : <div className="space-y-2">{filteredTasks.map((task) => {
                 const isSelected = task.id === selectedId;
                 return <button key={task.id} type="button" aria-pressed={isSelected} onClick={() => chooseTask(task.id)} className={`w-full min-w-0 rounded-lg border p-3 text-left transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 ${isSelected ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
                   <span className="flex min-w-0 flex-wrap items-center justify-between gap-2 text-xs leading-5 text-slate-600"><span className="min-w-0 break-words font-medium text-emerald-800 [overflow-wrap:anywhere]">{task.subtitle}</span><time>{task.dateLabel}</time></span>
+                  {task.timing && <WaitingTime record={task.timing} />}
                   <span className="mt-2 flex items-start gap-2"><span className="min-w-0 flex-1 break-words text-sm font-semibold leading-6 text-slate-900 [overflow-wrap:anywhere]">{task.title}</span><ChevronRight className="mt-1 size-4 shrink-0 text-slate-500" aria-hidden="true" /></span>
+                  {renderTaskDetails?.(task)}
                   {task.justificationPreview && <span className="mt-1 line-clamp-2 break-words text-sm leading-6 text-slate-600 [overflow-wrap:anywhere]">{task.justificationPreview}</span>}
                   <span className="mt-3 block break-all border-t border-slate-200 pt-2 font-mono text-xs leading-5 text-slate-600">{task.id}</span>
                 </button>;
@@ -165,15 +183,14 @@ export function DecisionButtonGroup({ value, onChange, approveLabel = 'Approve',
   value: string; onChange: (v: 'APPROVE' | 'RETURN_FOR_CORRECTION' | 'DECLINE') => void;
   approveLabel?: string; returnLabel?: string; declineLabel?: string;
 }) {
-  return <div className="grid gap-3 sm:grid-cols-3" role="group" aria-label="Decision selection">
+  return <div className="business-decision-choices grid gap-3 sm:grid-cols-3" role="group" aria-label="Decision selection">
     {([
       { value: 'APPROVE', label: approveLabel, icon: Check, selected: 'border-emerald-700 bg-emerald-50 text-emerald-950', description: 'Send to Admin approval' },
       { value: 'RETURN_FOR_CORRECTION', label: returnLabel, icon: Undo2, selected: 'border-amber-600 bg-amber-50 text-amber-950', description: 'Request changes from the office' },
       { value: 'DECLINE', label: declineLabel, icon: X, selected: 'border-rose-700 bg-rose-50 text-rose-950', description: 'Close this request as declined' },
-    ] as const).map((option) => <button key={option.value} type="button" aria-pressed={value === option.value} onClick={() => onChange(option.value)} className={`min-h-11 rounded-lg border p-3 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 ${value === option.value ? option.selected : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>
+    ] as const).map((option) => <div key={option.value} className="min-w-0"><button type="button" aria-pressed={value === option.value} aria-describedby={'business-choice-' + option.value} onClick={() => onChange(option.value)} className={`business-decision-choice w-full min-h-11 rounded-lg border p-3 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 ${value === option.value ? option.selected : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>
       <span className="flex items-center gap-2 text-sm font-semibold"><option.icon className="size-4 shrink-0" aria-hidden="true" />{option.label}</span>
-      <span className="mt-2 block text-xs leading-5">{option.description}</span>
-    </button>)}
+    </button><p id={'business-choice-' + option.value} className="mt-1 text-xs leading-5 text-slate-600">{option.description}</p></div>)}
   </div>;
 }
 

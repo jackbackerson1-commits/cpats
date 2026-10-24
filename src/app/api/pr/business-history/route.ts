@@ -56,6 +56,8 @@ export async function GET(request: NextRequest) {
             previousState: true,
             newState: true,
             remarks: true,
+            businessNecessityVerified: true,
+            businessBudgetAvailable: true,
             actor: { select: { email: true, role: true } },
           },
         },

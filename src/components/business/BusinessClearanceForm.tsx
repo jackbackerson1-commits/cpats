@@ -1,8 +1,10 @@
 'use client';
 
 import React from 'react';
-import { Banknote, CreditCard } from 'lucide-react';
-import { ActionButton, BusinessFinalAction, BusinessSection, CheckItem, FieldError, FieldLabel, inputClass } from './BusinessUI';
+import { Banknote, Copy, CreditCard } from 'lucide-react';
+import { ActionButton, BusinessSection, CheckItem, FieldError, FieldLabel, inputClass } from './BusinessUI';
+import { BusinessEvaluationActionBar } from './BusinessEvaluationWorkspace';
+import './business-clearance-workspace.css';
 
 interface BillingItem { itemName: string; quantity: number; unitPrice: number }
 interface FormErrors {
@@ -43,25 +45,32 @@ export function BusinessClearanceForm({ selectedTask, selectedPO, poId, paymentT
   physicalCheckSigned, ledgerLogged, calculatedBilledTotal, quantityTotal, checksVerified, isPending, validationErrors,
   onSubmit, onPriceChange, onPaymentTypeChange, onCheckNumberChange, onPhysicalCheckSignedChange, onLedgerLoggedChange,
 }: BusinessClearanceFormProps) {
+  const [copyResult, setCopyResult] = React.useState<{ id: string; message: string } | null>(null);
+  const copyReference = async () => {
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('Unavailable');
+      await navigator.clipboard.writeText(selectedTask.id);
+      setCopyResult({ id: selectedTask.id, message: 'Request reference copied.' });
+    } catch { setCopyResult({ id: selectedTask.id, message: 'Copy unavailable. Select the reference and copy it manually.' }); }
+  };
   return (
-    <form onSubmit={onSubmit} className="min-w-0 space-y-6" aria-busy={isPending}>
+    <form onSubmit={onSubmit} className="business-review-form clearance-form min-w-0 space-y-4" aria-busy={isPending}>
+      <BusinessEvaluationActionBar label="Financial clearance" title={formatPeso(calculatedBilledTotal)} jumpLabel="Review clearance" targetId="clearance-controls">
+        <ActionButton type="submit" aria-describedby="clearance-explanation" disabled={isPending}>{isPending ? 'Authorizing…' : 'Authorize clearance'}</ActionButton>
+      </BusinessEvaluationActionBar>
       <section aria-label="Purchase order overview" className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-xs sm:p-6">
-        <div className="flex min-w-0 flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <p className="text-xs font-medium text-emerald-800">Purchase order under review</p>
-            <h2 className="mt-2 break-words text-xl font-semibold text-slate-950 [overflow-wrap:anywhere]">{selectedPO?.poNumber || 'Purchase Order'}</h2>
-            <span className="mt-2 inline-flex rounded-md border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-900">Awaiting financial clearance</span>
-          </div>
-          <div className="min-w-0 sm:max-w-64 sm:text-right">
-            <p className="text-xs text-slate-600">Current billed total</p>
-            <p className="mt-1 break-words text-2xl font-semibold tabular-nums text-emerald-900 [overflow-wrap:anywhere]">{formatPeso(calculatedBilledTotal)}</p>
-          </div>
+        <div className="business-request-title-row">
+          <h2 title={selectedPO?.poNumber || 'Purchase Order'} className="line-clamp-2 min-w-0 text-base font-semibold text-slate-950">{selectedPO?.poNumber || 'Purchase Order'}</h2>
+          <span className="business-status-badge rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-xs font-medium text-sky-900">Awaiting financial clearance</span>
         </div>
-        <dl className="mt-5 grid min-w-0 gap-4 sm:grid-cols-3">
+        <p className="mt-2 text-xs font-medium text-emerald-800">Purchase order under review</p>
+        <dl className="business-overview-grid mt-3 grid min-w-0 gap-4">
           <div className="min-w-0"><dt className="text-xs text-slate-600">Originating office</dt><dd className="mt-1 break-words text-sm font-medium leading-6 text-slate-900 [overflow-wrap:anywhere]">{selectedTask.department.name} ({selectedTask.department.code})</dd></div>
-          <div className="min-w-0"><dt className="text-xs text-slate-600">Request reference</dt><dd className="mt-1 break-all font-mono text-xs leading-6 text-slate-700">{selectedTask.id}</dd></div>
+          <div className="min-w-0"><dt className="text-xs text-slate-600">Current billed total</dt><dd className="mt-1 break-words text-base font-semibold tabular-nums text-emerald-900 [overflow-wrap:anywhere]">{formatPeso(calculatedBilledTotal)}</dd></div>
           <div className="min-w-0"><dt className="text-xs text-slate-600">Billing scope</dt><dd className="mt-1 text-sm font-medium leading-6 text-slate-900">{billingItems.length} line item{billingItems.length === 1 ? '' : 's'} · {quantityTotal} total unit{quantityTotal === 1 ? '' : 's'}</dd></div>
         </dl>
+        <div className="business-reference-row mt-3"><span className="text-xs font-medium text-slate-600">Request reference</span><code className="min-w-0 select-all break-all text-xs text-slate-700">{selectedTask.id}</code><button type="button" aria-label="Copy reference" title="Copy reference" onClick={() => void copyReference()} className="business-copy-button rounded-lg border border-slate-300 bg-white"><Copy className="size-4" aria-hidden="true" /></button></div>
+        <p role="status" className="text-xs leading-5 text-slate-600">{copyResult?.id === selectedTask.id ? copyResult.message : ''}</p>
         <input type="text" required readOnly tabIndex={-1} aria-label="Selected purchase order reference" className="sr-only" value={poId} />
         {validationErrors?.poId?._errors && <FieldError>{validationErrors.poId._errors[0]}</FieldError>}
       </section>
@@ -78,8 +87,8 @@ export function BusinessClearanceForm({ selectedTask, selectedPO, poId, paymentT
             const message = itemError(validationErrors?.items, index, field);
             return message ? [message] : [];
           });
-          return <li key={index} className="grid min-w-0 gap-4 rounded-lg border border-slate-200 bg-slate-50/60 p-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_64px_140px_140px]">
-            <div className="min-w-0 sm:col-span-2 lg:col-span-1">
+          return <li key={index} className="clearance-billing-item grid min-w-0 gap-3 rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+            <div className="clearance-item-name min-w-0">
               <p className="text-xs text-slate-600">Item {index + 1}</p>
               <p className="mt-1 whitespace-pre-wrap break-words text-sm font-medium leading-6 text-slate-900 [overflow-wrap:anywhere]">{item.itemName}</p>
             </div>
@@ -95,7 +104,7 @@ export function BusinessClearanceForm({ selectedTask, selectedPO, poId, paymentT
               </div>
             </div>
             <div className="min-w-0"><p className="text-xs text-slate-600">Line total</p><p className="mt-2 break-words text-sm font-semibold tabular-nums text-slate-900 [overflow-wrap:anywhere]">{formatPeso(lineAmount)}</p></div>
-            {errors.length > 0 && <div className="min-w-0 sm:col-span-2 lg:col-span-4"><FieldError id={`billing-item-error-${index}`}>{errors.join(' ')}</FieldError></div>}
+            {errors.length > 0 && <div className="clearance-item-errors min-w-0"><FieldError id={`billing-item-error-${index}`}>{errors.join(' ')}</FieldError></div>}
           </li>;
         })}</ol>
         {billingItems.length === 0 && <p className="text-sm text-slate-600">No billing items are recorded for this request.</p>}
@@ -106,6 +115,7 @@ export function BusinessClearanceForm({ selectedTask, selectedPO, poId, paymentT
         </div>
       </BusinessSection>
 
+      <div id="clearance-controls" tabIndex={-1} className="min-w-0 space-y-4">
       <BusinessSection title="Payment method" description="Choose how this purchase order will be financially cleared.">
         <fieldset>
           <legend className="sr-only">Settlement method</legend>
@@ -142,10 +152,8 @@ export function BusinessClearanceForm({ selectedTask, selectedPO, poId, paymentT
         <p className="mt-2">Credit terms clearance makes this request ready for purchase. Billing will be settled when the supplier invoice is submitted.</p>
       </section>}
 
-      <BusinessFinalAction title="Authorize financial clearance" description={paymentType === 'CASH_CHECK' ? 'Record the verified billing amounts and check-backed clearance. The request becomes ready for purchase.' : 'Record the verified billing amounts and supplier credit terms. The request becomes ready for purchase.'}>
-        <div className="min-w-0 flex-1"><p className="text-xs text-slate-600">Total to authorize</p><p className="mt-1 break-words text-xl font-semibold tabular-nums text-emerald-950 [overflow-wrap:anywhere]">{formatPeso(calculatedBilledTotal)}</p></div>
-        <ActionButton type="submit" disabled={isPending}>{isPending ? 'Authorizing clearance…' : 'Authorize financial clearance'}</ActionButton>
-      </BusinessFinalAction>
+      <p id="clearance-explanation" className="text-xs leading-5 text-slate-600"><span className="font-semibold">Total to authorize: {formatPeso(calculatedBilledTotal)}.</span> {paymentType === 'CASH_CHECK' ? 'Record the verified billing amounts and check-backed clearance. The request becomes ready for purchase.' : 'Record the verified billing amounts and supplier credit terms. The request becomes ready for purchase.'}</p>
+      </div>
     </form>
   );
 }

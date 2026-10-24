@@ -4,6 +4,7 @@ import { prisma } from '@/shared/prisma';
 import { BusinessEvaluationSchema } from '@/validation/business.schema';
 import { authorizeRequest } from '@/shared/rbac';
 import { dispatchNotificationForAuditLog } from '@/shared/notifications';
+import { isWorkflowConflict, WORKFLOW_CONFLICT_MESSAGE } from '@/shared/workflow-conflict';
 
 class StaleAdminReturnError extends Error {}
 
@@ -23,11 +24,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { prId, action, remarks } = validation.data;
+    const { prId, action, remarks, necessityVerified, budgetAvailable } = validation.data;
 
     const currentPR = await prisma.purchaseRequest.findUnique({
       where: { id: prId },
-      select: { id: true, status: true }
+      select: { id: true, status: true, updatedAt: true }
     });
 
     if (!currentPR) {
@@ -55,7 +56,7 @@ export async function POST(request: NextRequest) {
 
     const transactionResult = await prisma.$transaction(async (tx) => {
       const updatedRequest = await tx.purchaseRequest.update({
-        where: { id: prId },
+        where: { id: prId, status: PRStatus.Pending_Business_Approval, updatedAt: currentPR.updatedAt },
         data: { status: nextState }
       });
 
@@ -65,7 +66,9 @@ export async function POST(request: NextRequest) {
           actorId: activeUser.id,
           previousState: currentPR.status,
           newState: nextState,
-          remarks: remarks
+          remarks: remarks,
+          businessNecessityVerified: necessityVerified ?? null,
+          businessBudgetAvailable: budgetAvailable ?? null,
         }
       });
 
@@ -76,6 +79,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: transactionResult.record }, { status: 200 });
   } catch (error: unknown) {
+    if (isWorkflowConflict(error)) return NextResponse.json({ success: false, error: WORKFLOW_CONFLICT_MESSAGE }, { status: 409 });
     console.error("CRITICAL REQUISITION EVALUATION FAILURE:", error);
     return NextResponse.json({ success: false, error: "Critical Execution Fault during state mutation." }, { status: 500 });
   }
@@ -87,7 +91,7 @@ export async function PATCH(request: NextRequest) {
     if (!auth.success) return auth.response;
     const validation = BusinessEvaluationSchema.safeParse(await request.json());
     if (!validation.success) return NextResponse.json({ success: false, errors: validation.error.format() }, { status: 422 });
-    const { prId, action, remarks } = validation.data;
+    const { prId, action, remarks, necessityVerified, budgetAvailable } = validation.data;
     if (action !== 'APPROVE') {
       return NextResponse.json({ success: false, error: 'Returned Admin requests can only be revised and sent back for approval.' }, { status: 400 });
     }
@@ -97,6 +101,7 @@ export async function PATCH(request: NextRequest) {
         where: { id: prId },
         select: {
           status: true,
+          updatedAt: true,
           auditLogs: {
             orderBy: { createdAt: 'desc' },
             take: 1,
@@ -112,7 +117,7 @@ export async function PATCH(request: NextRequest) {
           latest.newState !== PRStatus.Returned_for_Correction) throw new StaleAdminReturnError();
 
       const update = await tx.purchaseRequest.updateMany({
-        where: { id: prId, status: PRStatus.Returned_for_Correction },
+        where: { id: prId, status: PRStatus.Returned_for_Correction, updatedAt: record.updatedAt },
         data: { status: PRStatus.Pending_Admin_Approval },
       });
       if (update.count !== 1) throw new StaleAdminReturnError();
@@ -123,6 +128,8 @@ export async function PATCH(request: NextRequest) {
           previousState: PRStatus.Returned_for_Correction,
           newState: PRStatus.Pending_Admin_Approval,
           remarks,
+          businessNecessityVerified: necessityVerified ?? null,
+          businessBudgetAvailable: budgetAvailable ?? null,
         },
       });
       return { auditLogId: auditLog.id };
@@ -131,6 +138,7 @@ export async function PATCH(request: NextRequest) {
     await dispatchNotificationForAuditLog(result.auditLogId);
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (isWorkflowConflict(error)) return NextResponse.json({ success: false, error: WORKFLOW_CONFLICT_MESSAGE }, { status: 409 });
     if (error instanceof StaleAdminReturnError) {
       return NextResponse.json({ success: false, error: 'This Admin return is no longer available for Business Office revision. Refresh the workspace.' }, { status: 409 });
     }
