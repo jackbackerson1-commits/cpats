@@ -4,6 +4,8 @@ import { prisma } from '@/shared/prisma';
 import { CreateReceivingReportSchema } from '@/validation/receiving.schema';
 import { authorizeRequest } from '@/shared/rbac';
 import { dispatchNotificationForAuditLog } from '@/shared/notifications';
+import { isWorkflowConflict, WORKFLOW_CONFLICT_MESSAGE } from '@/shared/workflow-conflict';
+import { assertEvidenceReferences, EvidenceError } from '@/shared/evidence';
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,6 +24,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { purchaseOrderId, condition, invoiceFilePath, asssetImageFilePath, remarks } = validation.data;
+    await assertEvidenceReferences(activeUser, invoiceFilePath, asssetImageFilePath);
 
     const transactionResult = await prisma.$transaction(async (tx) => {
       const targetPO = await tx.purchaseOrder.findUnique({
@@ -37,6 +40,12 @@ export async function POST(request: NextRequest) {
         throw new Error("INVALID_LIFECYCLE_STAGE");
       }
 
+      // Claim the eligible request first; a losing submission creates no report.
+      await tx.purchaseRequest.update({
+        where: { id: targetPO.purchaseRequestId, status: PRStatus.Ready_for_Purchase, updatedAt: targetPO.purchaseRequest.updatedAt },
+        data: { status: PRStatus.Received_and_Closed }
+      });
+
       const newReport = await tx.receivingReport.create({
         data: {
           purchaseOrderId: purchaseOrderId,
@@ -45,11 +54,6 @@ export async function POST(request: NextRequest) {
           asssetImageFilePath: asssetImageFilePath,
           remarks: remarks || null
         }
-      });
-
-      await tx.purchaseRequest.update({
-        where: { id: targetPO.purchaseRequestId },
-        data: { status: PRStatus.Received_and_Closed }
       });
 
       const auditLog = await tx.auditLog.create({
@@ -69,6 +73,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: transactionResult.record }, { status: 201 });
   } catch (error: unknown) {
+    if (error instanceof EvidenceError) return NextResponse.json({ success: false, error: error.message }, { status: error.status });
+    if (isWorkflowConflict(error)) return NextResponse.json({ success: false, error: WORKFLOW_CONFLICT_MESSAGE }, { status: 409 });
     if (error instanceof Error) {
       switch (error.message) {
         case "PURCHASE_ORDER_NOT_FOUND":

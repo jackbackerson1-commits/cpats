@@ -2,21 +2,27 @@
 
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { Building2, CheckCircle2, ChevronDown, ChevronRight, CircleAlert, ClipboardList, LoaderCircle, Search, X } from 'lucide-react';
+import { QueueFilters, useQueueFilters } from '@/components/ui/QueueFilters';
+import { matchesQueueFilters } from '@/shared/queue-insights';
 import type { QueueTask } from '@/components/ui/WorkflowUI';
+import { ReviewPreviewCard, ReviewRecordHeader, useReviewViewport } from '@/components/ui/ReviewPresentation';
+import '@/components/ui/review-workspace.css';
+import waves from '@/components/requesting/requester-waves.module.css';
 
 export type { QueueTask } from '@/components/ui/WorkflowUI';
 
 // Local presentation primitives: other offices retain their existing components.
-export function PageShell({ children }: { children: React.ReactNode }) {
-  return <main className="mx-auto w-full max-w-[1920px] space-y-6 px-4 py-6 text-slate-900 sm:px-6 sm:py-8 lg:px-8">{children}</main>;
+export function PageShell({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return <main className={`receiving-portal-workspace mx-auto w-full max-w-[1920px] space-y-6 px-4 py-6 text-slate-900 sm:px-6 sm:py-8 lg:px-8 ${className}`}>{children}</main>;
 }
 
-export function StageHeader({ title, description, meta }: {
+export function StageHeader({ title, description, meta, waveBackground = false }: {
   eyebrow?: string; title: string; description: string;
   meta?: { label: string; value: string };
+  waveBackground?: boolean;
 }) {
   return (
-    <header className="rounded-xl border border-slate-200 border-l-4 border-l-emerald-800 bg-white p-5 shadow-xs sm:p-6 lg:p-7">
+    <header className={waveBackground ? `receiving-page-introduction ${waves.introduction} ${waves.adminIntroduction} shadow-xs` : 'receiving-page-introduction rounded-xl border border-slate-200 border-l-4 border-l-emerald-800 bg-white p-5 shadow-xs sm:p-6 lg:p-7'}>
       <p className="mb-3 flex items-center gap-2 text-xs font-medium text-emerald-800">
         <Building2 className="size-4 shrink-0" aria-hidden="true" />Receiving Custodian
       </p>
@@ -86,25 +92,56 @@ export function ReceivingSection({ title, description, children, id }: {
 }
 
 export function ReviewWorkspace({ queueTitle, tasks, loading, emptyMessage, selectedId, onSelect,
-  selectionLabel = 'In review', selectedTaskLabel = 'Reviewing selected transaction', children,
+  selectionLabel = 'In review', selectedTaskLabel = 'Reviewing selected transaction', compact = false, queueAction, children,
 }: {
   queueTitle: string; tasks: QueueTask[]; loading: boolean; emptyMessage: string; selectedId: string;
-  onSelect: (id: string) => void; selectionLabel?: string; selectedTaskLabel?: string; children: React.ReactNode;
+  onSelect: (id: string) => void; selectionLabel?: string; selectedTaskLabel?: string; compact?: boolean; queueAction?: React.ReactNode; children: React.ReactNode;
 }) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [filters, setFilters] = useQueueFilters();
+  const filtersActive = !!searchQuery || Object.values(filters).some(Boolean);
   const [queueExpanded, setQueueExpanded] = useState(false);
   const detailsRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLElement>(null);
+  const workspaceRef = useRef<HTMLElement>(null);
+  useReviewViewport(workspaceRef, detailsRef, selectedId, compact);
+  const listScrollRef = useRef<HTMLDivElement>(null);
+  const positionRef = useRef<{ page: number; scroll: number; trigger: HTMLElement | null } | null>(null);
   const queueId = useId();
   const currentTask = tasks.find((task) => task.id === selectedId);
+  useEffect(() => {
+    if (!compact || !selectedId) return;
+    let focusFrame = 0;
+    // Follow an accepted parent selection; a cancelled unsaved-change prompt keeps the queue open.
+    const frame = requestAnimationFrame(() => {
+      setQueueExpanded(false);
+      focusFrame = requestAnimationFrame(() => {
+        if (window.innerWidth < 1024) {
+          detailsRef.current?.focus({ preventScroll: true });
+          detailsRef.current?.scrollIntoView({ block: 'start', behavior: 'auto' });
+        }
+      });
+    });
+    return () => { cancelAnimationFrame(frame); cancelAnimationFrame(focusFrame); };
+  }, [compact, selectedId]);
   // Preserve the existing queue's search fields and matching rules.
   const filteredTasks = tasks.filter((task) => {
+    if (!matchesQueueFilters(task, filters)) return false;
     const q = searchQuery.toLowerCase().trim();
     if (!q) return true;
     return task.title.toLowerCase().includes(q) || task.subtitle.toLowerCase().includes(q) ||
-      task.id.toLowerCase().includes(q) || (task.justificationPreview && task.justificationPreview.toLowerCase().includes(q));
+      task.id.toLowerCase().includes(q) || task.department?.toLowerCase().includes(q) || (task.justificationPreview && task.justificationPreview.toLowerCase().includes(q));
   });
 
   const chooseTask = (id: string) => {
+    if (compact) {
+      positionRef.current = { page: window.scrollY, scroll: listScrollRef.current?.scrollTop || 0, trigger: document.activeElement instanceof HTMLElement ? document.activeElement : null };
+      if (id === selectedId) {
+        setQueueExpanded(false);
+        requestAnimationFrame(() => { detailsRef.current?.focus({ preventScroll: true }); detailsRef.current?.scrollIntoView({ block: 'start' }); });
+      } else onSelect(id);
+      return;
+    }
     onSelect(id);
     setQueueExpanded(false);
     window.requestAnimationFrame(() => {
@@ -115,16 +152,29 @@ export function ReviewWorkspace({ queueTitle, tasks, loading, emptyMessage, sele
     });
   };
 
+  const backToQueue = () => {
+    setQueueExpanded(true);
+    requestAnimationFrame(() => {
+      if (positionRef.current) {
+        if (listScrollRef.current) listScrollRef.current.scrollTop = positionRef.current.scroll;
+        window.scrollTo({ top: positionRef.current.page, behavior: 'instant' });
+      }
+      const trigger = positionRef.current?.trigger?.isConnected ? positionRef.current.trigger : listRef.current?.querySelector<HTMLElement>('[aria-pressed="true"]');
+      (trigger || listRef.current)?.focus({ preventScroll: true });
+    });
+  };
+
   return (
-    <section aria-label="Receiving Custodian review workspace" className="grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(280px,26%)_minmax(0,1fr)]">
-      <aside aria-label={queueTitle} className="min-w-0 xl:sticky xl:top-36">
+    <section ref={workspaceRef} aria-label="Receiving Custodian review workspace" data-mobile-view={compact ? currentTask && !queueExpanded ? 'detail' : 'queue' : undefined} className={`grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(280px,26%)_minmax(0,1fr)]${compact ? ' receiving-intake-workspace' : ''}`}>
+      <aside ref={listRef} tabIndex={compact ? -1 : undefined} aria-label={queueTitle} className={`min-w-0 xl:sticky xl:top-36${compact ? ' receiving-intake-list' : ''}`}>
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs">
           <div className="space-y-3 border-b border-slate-200 p-4">
             <div className="flex items-start justify-between gap-3">
               <h2 className="min-w-0 text-base font-semibold leading-6 text-slate-950">{queueTitle}</h2>
               <span className="shrink-0 rounded-md bg-slate-100 px-2 py-1 text-xs font-medium tabular-nums text-slate-700">{loading ? 'Loading…' : `${filteredTasks.length} of ${tasks.length}`}</span>
             </div>
-            {currentTask && <div className="xl:hidden">
+            {compact && queueAction && <div>{queueAction}</div>}
+            {currentTask && <div className={compact ? 'receiving-intake-selection' : 'xl:hidden'}>
               <p className="text-xs font-medium text-emerald-800">{selectionLabel}</p>
               <p className="mt-1 break-words text-sm font-medium leading-6 text-slate-900 [overflow-wrap:anywhere]">{currentTask.title}</p>
               <button type="button" aria-expanded={queueExpanded} aria-controls={queueId} onClick={() => setQueueExpanded((v) => !v)} className="mt-2 inline-flex min-h-11 items-center gap-2 rounded-lg border border-slate-300 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">
@@ -132,37 +182,35 @@ export function ReviewWorkspace({ queueTitle, tasks, loading, emptyMessage, sele
               </button>
             </div>}
           </div>
-          <div id={queueId} className={currentTask && !queueExpanded ? 'hidden xl:block' : undefined}>
+          <div id={queueId} className={`${currentTask && !queueExpanded ? 'hidden xl:block' : ''}${compact ? ' receiving-intake-list-content' : ''}`}>
             <div className="relative m-3">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-600" aria-hidden="true" />
               <input type="search" aria-label={`Search ${queueTitle}`} placeholder="Search items, office, or reference" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className={`${inputClass()} pl-9 pr-12`} />
               {searchQuery && <button type="button" aria-label="Clear queue search" onClick={() => setSearchQuery('')} className="absolute right-1 top-1/2 grid size-11 -translate-y-1/2 place-items-center rounded-lg text-slate-600 hover:bg-slate-100"><X className="size-4" aria-hidden="true" /></button>}
             </div>
-            <div className="max-h-96 overflow-y-auto overscroll-contain p-2 xl:max-h-[calc(100dvh-20rem)]">
+            <div className="m-3"><details><summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold text-slate-700 focus-visible:outline-2 focus-visible:outline-emerald-700">Additional filters{Object.values(filters).some(Boolean) ? ' · applied' : ''}</summary><QueueFilters compact records={tasks} value={filters} onChange={setFilters} onClear={() => setSearchQuery('')} /></details>{currentTask && !filteredTasks.some(task => task.id === selectedId) && <p role="status" className="mt-3 text-xs leading-5 text-slate-600">The open record is outside these filters. Its form remains open.</p>}</div>
+            <div ref={listScrollRef} data-empty={!loading && filteredTasks.length === 0} className={`max-h-96 overflow-y-auto overscroll-contain p-2 xl:max-h-[calc(100dvh-20rem)]${compact ? ' receiving-intake-list-scroll' : ''}`}>
               {loading ? <p role="status" className="flex items-center gap-2 px-3 py-8 text-sm text-slate-600"><LoaderCircle className="size-4 animate-spin" aria-hidden="true" />Loading shipments…</p> : filteredTasks.length === 0 ? <div className="px-3 py-7 text-center">
                 <ClipboardList className="mx-auto size-7 text-slate-500" aria-hidden="true" />
-                <p className="mt-3 text-sm font-semibold text-slate-800">{searchQuery ? 'No matching records' : 'Queue clear'}</p>
-                <p className="mt-1 text-sm leading-6 text-slate-600">{searchQuery ? 'Try another reference, department, or item keyword.' : emptyMessage}</p>
+                <p className="mt-3 text-sm font-semibold text-slate-800">{filtersActive ? 'No matching records' : 'Queue clear'}</p>
+                <p className="mt-1 text-sm leading-6 text-slate-600">{filtersActive ? 'Adjust the filters or clear them to see the full queue.' : emptyMessage}</p>
               </div> : <div className="space-y-2">{filteredTasks.map((task) => {
                 const isSelected = task.id === selectedId;
-                return <button key={task.id} type="button" aria-pressed={isSelected} onClick={() => chooseTask(task.id)} className={`w-full min-w-0 rounded-lg border p-3 text-left transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 ${isSelected ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
-                  <span className="flex min-w-0 flex-wrap items-center justify-between gap-2 text-xs leading-5 text-slate-600"><span className="min-w-0 break-words font-medium text-emerald-800 [overflow-wrap:anywhere]">{task.subtitle}</span><time>{task.dateLabel}</time></span>
-                  <span className="mt-2 flex items-start gap-2"><span className="min-w-0 flex-1 break-words text-sm font-semibold leading-6 text-slate-900 [overflow-wrap:anywhere]">{task.title}</span><ChevronRight className="mt-1 size-4 shrink-0 text-slate-500" aria-hidden="true" /></span>
-                  {task.justificationPreview && <span className="mt-1 line-clamp-2 break-words text-sm leading-6 text-slate-600 [overflow-wrap:anywhere]">{task.justificationPreview}</span>}
-                  <span className="mt-3 block break-all border-t border-slate-200 pt-2 font-mono text-xs leading-5 text-slate-600">{task.id}</span>
-                </button>;
+                return <ReviewPreviewCard key={task.id} task={task} selected={isSelected} onSelect={chooseTask} />;
               })}</div>}
             </div>
           </div>
         </div>
       </aside>
-      <div ref={detailsRef} tabIndex={-1} role="region" aria-label={selectedId ? selectedTaskLabel : 'Request details'} className="min-w-0 scroll-mt-40 focus:outline-none">{children}</div>
+      <div ref={detailsRef} tabIndex={-1} role="region" aria-label={selectedId ? selectedTaskLabel : 'Request details'} className={`min-w-0 scroll-mt-40 focus:outline-none${compact ? ' receiving-intake-detail' : ''}`}>
+        {compact && selectedId && <button type="button" onClick={backToQueue} className="receiving-intake-back mb-3 inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700"><ChevronRight className="size-4 rotate-180" aria-hidden="true" />Back to shipments</button>}{compact && currentTask && <ReviewRecordHeader task={currentTask} />}{children}
+      </div>
     </section>
   );
 }
 
 export function ActionButton({ children, className = '', ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  return <button {...props} className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-emerald-800 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-700 ${className}`}>{children}</button>;
+  return <button {...props} className={`receiving-primary inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-emerald-800 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-700 ${className}`}>{children}</button>;
 }
 
 export function ScannerDialog({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {

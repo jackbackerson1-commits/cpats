@@ -28,8 +28,10 @@ export async function GET(request: NextRequest) {
       { purchaseOrder: { purchaseRequest: { department: { code: { contains: q } } } } },
     ] } : {}),
   };
+  const categoryWhere = { ...where };
+  delete categoryWhere.condition;
   try {
-    const [data, total] = await Promise.all([
+    const [data, total, good, damaged] = await Promise.all([
       prisma.receivingReport.findMany({ where, skip: (page - 1) * pageSize, take: pageSize,
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], select: {
           id: true, condition: true, remarks: true, createdAt: true, invoiceFilePath: true, asssetImageFilePath: true,
@@ -44,8 +46,10 @@ export async function GET(request: NextRequest) {
           } } } },
         } }),
       prisma.receivingReport.count({ where }),
+      prisma.receivingReport.count({ where: { ...categoryWhere, condition: 'Good' } }),
+      prisma.receivingReport.count({ where: { ...categoryWhere, condition: 'Damaged' } }),
     ]);
-    return NextResponse.json({ success: true, data, total, page, pageSize }, { headers: { 'Cache-Control': 'private, no-store' } });
+    return NextResponse.json({ success: true, data, total, page, pageSize, conditionCounts: { all: good + damaged, Good: good, Damaged: damaged } }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {
     console.error('RECEIVING HISTORY LOAD FAILURE:', error);
     return NextResponse.json({ success: false, error: 'Receiving history could not be loaded. Please try again.' }, { status: 500 });

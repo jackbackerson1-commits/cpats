@@ -8,7 +8,7 @@ import { z } from 'zod';
 
 type Where = Prisma.ReceivingReportWhereInput;
 type Query = { where: Where; skip: number; take: number };
-type Reply = { status: number; body: { success: boolean; data?: typeof reports; total?: number; error?: string } };
+type Reply = { status: number; body: { success: boolean; data?: typeof reports; total?: number; conditionCounts?: { all: number; Good: number; Damaged: number }; error?: string } };
 const prId = '11111111-1111-4111-8111-111111111111';
 const reports = Array.from({ length: 25 }, (_, index) => ({ id: `report-${index}`, condition: index % 2 ? 'Damaged' : 'Good', remarks: 'Saved inspection remarks', invoiceFilePath: '/uploads/invoice.pdf', asssetImageFilePath: '/uploads/photo.jpg',
   purchaseOrder: { poNumber: `PO-${index}`, purchaseRequestId: prId, purchaseRequest: { id: prId, status: PRStatus.Declined, department: { name: 'Computer Studies', code: 'CCS' } } } }));
@@ -61,6 +61,19 @@ test('condition, PO/department searches and notification request links stay with
   assert.equal((await h.get('?prId=' + prId + '&condition=Good')).body.total, 13);
   assert.equal((await h.get('?prId=22222222-2222-4222-8222-222222222222')).body.total, 0);
   assert.equal((await h.get('?q=NO-MATCH')).body.total, 0);
+  assert.equal(h.writes.length, 0);
+});
+
+test('category counts span all pages and conditions while retaining search and request scope', async () => {
+  const h = harness(Role.Receiving_Custodian);
+  for (const search of ['', '?page=2', '?condition=Good', '?condition=Damaged']) {
+    const counts = (await h.get(search)).body.conditionCounts;
+    assert.equal(counts?.all, 25); assert.equal(counts?.Good, 13); assert.equal(counts?.Damaged, 12);
+  }
+  const searched = (await h.get('?q=PO-24&condition=Damaged')).body;
+  assert.equal(searched.total, 0);
+  assert.equal(searched.conditionCounts?.all, 1); assert.equal(searched.conditionCounts?.Good, 1); assert.equal(searched.conditionCounts?.Damaged, 0);
+  assert.equal((await h.get('?prId=22222222-2222-4222-8222-222222222222')).body.conditionCounts?.all, 0);
   assert.equal(h.writes.length, 0);
 });
 test('other roles, invalid filters and failed database loads cannot expose or alter receiving history', async () => {
