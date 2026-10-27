@@ -1,5 +1,7 @@
 'use client';
 
+import { actionFeedback, submissionFeedbackError } from '@/components/ui/action-feedback';
+
 import { Archive, ArchiveRestore, ArrowLeft, ArrowUpRight, Bell, CheckCheck, Clock3, Inbox, Link2, Mail, MailCheck, MailOpen, ShieldCheck, Trash2, Unlink } from 'lucide-react';
 import Link from 'next/link';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
@@ -12,6 +14,7 @@ import {
   type NotificationItem,
 } from '@/components/ui/NotificationDetailDialog';
 import NotificationTrashDialog, { type NotificationTrashSchedule } from '@/components/ui/NotificationTrashDialog';
+import waves from '@/components/requesting/requester-waves.module.css';
 
 interface Settings { notificationEmail: string | null; pendingEmail: string | null; emailVerifiedAt: string | null; emailNotificationsEnabled: boolean }
 
@@ -140,57 +143,63 @@ export default function NotificationsPage() {
     return result.data;
   }
 
+  const publishMessage = (notice: { type: 'success' | 'error'; text: string } | null, tone: 'success' | 'warning' | 'error' = 'success') => {
+    setMessage(notice);
+    if (notice) actionFeedback(notice.type === 'error' ? 'Action could not be confirmed' : 'Notification action recorded', notice.text, notice.type === 'error' ? 'error' : tone);
+  };
+
   const requestCode = async (event: FormEvent) => {
-    event.preventDefault(); setSaving(true); setMessage(null);
+    event.preventDefault(); setSaving(true); publishMessage(null);
     try {
       const data = await apiRequest('/api/notifications/settings/request-verification', 'POST', { email });
       setSettings((current) => ({ ...current, pendingEmail: data.pendingEmail }));
       setDevCode(data.devVerificationCode || null);
-      setMessage({ type: 'success', text: 'Verification code sent. Enter it below within 15 minutes.' });
-    } catch (error) { setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Unable to send code.' }); }
+      publishMessage({ type: 'success', text: 'Verification code sent. Enter it below within 15 minutes.' });
+    } catch (error) { publishMessage({ type: 'error', text: error instanceof Error ? error.message : 'Unable to send code.' }); }
     finally { setSaving(false); }
   };
 
   const verifyCode = async (event: FormEvent) => {
-    event.preventDefault(); setSaving(true); setMessage(null);
+    event.preventDefault(); setSaving(true); publishMessage(null);
     try {
       const data = await apiRequest('/api/notifications/settings/verify', 'POST', { code });
       setSettings((current) => ({ ...current, ...data, pendingEmail: null }));
       setCode(''); setDevCode(null);
-      setMessage({ type: 'success', text: 'Email verified. Workflow email notifications are now enabled.' });
-    } catch (error) { setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Unable to verify code.' }); }
+      publishMessage({ type: 'success', text: 'Email verified. Workflow email notifications are now enabled.' });
+    } catch (error) { publishMessage({ type: 'error', text: error instanceof Error ? error.message : 'Unable to verify code.' }); }
     finally { setSaving(false); }
   };
 
   const toggleDelivery = async () => {
-    setSaving(true); setMessage(null);
+    setSaving(true); publishMessage(null);
     try {
       const data = await apiRequest('/api/notifications/settings', 'PATCH', { emailNotificationsEnabled: !settings.emailNotificationsEnabled });
       setSettings((current) => ({ ...current, ...data }));
-      setMessage({ type: 'success', text: data.emailNotificationsEnabled ? 'Email notifications enabled.' : 'Email notifications paused. In-app alerts remain active.' });
-    } catch (error) { setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Unable to update setting.' }); }
+      publishMessage({ type: 'success', text: data.emailNotificationsEnabled ? 'Email notifications enabled.' : 'Email notifications paused. In-app alerts remain active.' });
+    } catch (error) { publishMessage({ type: 'error', text: error instanceof Error ? error.message : 'Unable to update setting.' }); }
     finally { setSaving(false); }
   };
 
   const unlink = async () => {
-    setSaving(true); setMessage(null);
+    setSaving(true); publishMessage(null);
     try {
       await apiRequest('/api/notifications/settings', 'PATCH', { unlink: true });
       setSettings(emptySettings); setEmail(''); setCode(''); setDevCode(null);
-      setMessage({ type: 'success', text: 'Notification email unlinked. In-app alerts remain active.' });
-    } catch (error) { setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Unable to unlink email.' }); }
+      publishMessage({ type: 'success', text: 'Notification email unlinked. In-app alerts remain active.' });
+    } catch (error) { publishMessage({ type: 'error', text: error instanceof Error ? error.message : 'Unable to unlink email.' }); }
     finally { setSaving(false); }
   };
 
   const markAllRead = async () => {
     setSaving(true);
-    setMessage(null);
+    publishMessage(null);
     try {
       await apiRequest('/api/notifications/read', 'POST', { all: true });
       setItems((current) => current.map((item) => ({ ...item, readAt: item.readAt || new Date().toISOString() })));
       setUnreadCount(0);
+      actionFeedback('Notifications marked as read', 'All Inbox notifications are now marked as read.');
     } catch (error) {
-      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Notifications could not be marked as read.' });
+      publishMessage({ type: 'error', text: error instanceof Error ? error.message : 'Notifications could not be marked as read.' });
     } finally {
       setSaving(false);
     }
@@ -229,17 +238,17 @@ export default function NotificationsPage() {
   const manageInbox = async (action: 'archive' | 'unarchive' | 'markRead' | 'markUnread', ids: string[]) => {
     if (!ids.length || saving) return;
     setSaving(true);
-    setMessage(null);
+    publishMessage(null);
     try {
       const result = await apiRequest('/api/notifications/manage', 'POST', { action, notificationIds: ids });
       setSelectedIds([]);
-      setMessage({
+      publishMessage({
         type: 'success',
         text: `${result.updated} notification${result.updated === 1 ? '' : 's'} ${action === 'archive' ? 'archived' : action === 'unarchive' ? 'returned to Inbox' : action === 'markRead' ? 'marked as read' : 'marked as unread'}.`,
       });
       await load();
     } catch (error) {
-      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'The notification action could not be completed.' });
+      publishMessage({ type: 'error', text: error instanceof Error ? error.message : 'The notification action could not be completed.' });
     } finally {
       setSaving(false);
     }
@@ -263,15 +272,16 @@ export default function NotificationsPage() {
       const affected = trashDialog.ids.length;
       setTrashDialog(null);
       setSelectedIds([]);
-      setMessage({
+      publishMessage({
         type: 'success',
         text: trashDialog.mode === 'move'
           ? `${affected} notification${affected === 1 ? '' : 's'} moved to Trash.`
           : `${affected} notification${affected === 1 ? '' : 's'} permanently deleted. Procurement records were not changed.`,
-      });
+      }, trashDialog.mode === 'move' ? 'warning' : 'error');
       await load();
     } catch (error) {
       setTrashError(error instanceof Error ? error.message : 'The notification action could not be completed.');
+      submissionFeedbackError(error);
     } finally {
       setTrashBusy(false);
     }
@@ -279,14 +289,14 @@ export default function NotificationsPage() {
 
   const restoreNotifications = async (ids: string[]) => {
     setSaving(true);
-    setMessage(null);
+    publishMessage(null);
     try {
       await apiRequest('/api/notifications/trash', 'POST', { action: 'restore', notificationIds: ids });
       setSelectedIds([]);
-      setMessage({ type: 'success', text: `${ids.length} notification${ids.length === 1 ? '' : 's'} restored to the inbox.` });
+      publishMessage({ type: 'success', text: `${ids.length} notification${ids.length === 1 ? '' : 's'} restored to the inbox.` });
       await load();
     } catch (error) {
-      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'The notifications could not be restored.' });
+      publishMessage({ type: 'error', text: error instanceof Error ? error.message : 'The notifications could not be restored.' });
     } finally {
       setSaving(false);
     }
@@ -303,9 +313,11 @@ export default function NotificationsPage() {
           <ArrowLeft className="size-4 shrink-0" aria-hidden="true" />
           Back to dashboard
         </Link>
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">Role inbox</p>
-        <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Notifications</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">See updates about your requests and work assigned to your office. You can also send these alerts to an email address you control.</p>
+        <div className={waves.notificationIntroduction}>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">Role inbox</p>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Notifications</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">See updates about your requests and work assigned to your office. You can also send these alerts to an email address you control.</p>
+        </div>
       </div>
 
       {message && <div role="status" className={`mb-5 rounded-xl border px-4 py-3 text-sm ${message.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-rose-200 bg-rose-50 text-rose-800'}`}>{message.text}</div>}
