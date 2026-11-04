@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
+import { describeSubmissionIssue, SubmissionResponseError } from '../src/shared/submission-feedback';
 import { toast } from 'sonner';
 import { actionFeedback, decisionFeedback, submissionFeedbackError } from '../src/components/ui/action-feedback';
 
@@ -44,6 +45,7 @@ function businessHarness(action: string, reply: () => Promise<unknown>, stale = 
   let pending: Promise<unknown> = Promise.resolve();
   const state = { role: 'Business_Office' };
   const context: Record<string, unknown> = {
+    describeSubmissionIssue, SubmissionResponseError, guard: { markClean() {}, clear() {} }, draftNavigation: { clear() {} }, drafts: { markSubmitted() {} }, draftsEnabled: false,
     Error, JSON,
     activeUser: state, Role: { Business_Office: state.role },
     PRStatus: { Pending_Business_Approval: 'Pending_Business_Approval' },
@@ -59,7 +61,7 @@ function businessHarness(action: string, reply: () => Promise<unknown>, stale = 
     syncWorkspaceQueue: async () => undefined,
     router: { refresh: () => undefined },
   };
-  for (const setter of ['setSystemError', 'setFieldErrors', 'setSuccessMessage', 'setShowOperationStateModal', 'setTargetPrId', 'setEvaluationAction', 'setRemarks', 'setNecessityVerified', 'setBudgetAvailable']) context[setter] = (...args: unknown[]) => calls.push([setter, ...args]);
+  for (const setter of ['setSubmissionIssue', 'setSystemError', 'setFieldErrors', 'setSuccessMessage', 'setShowOperationStateModal', 'setTargetPrId', 'setEvaluationAction', 'setRemarks', 'setNecessityVerified', 'setBudgetAvailable']) context[setter] = (...args: unknown[]) => calls.push([setter, ...args]);
   const compiled = ts.transpileModule('globalThis.run = ' + handler, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
   vm.runInNewContext(compiled, context);
   return { calls, run: async () => { await (context.run as (event: unknown) => Promise<void>)({ preventDefault() {} }); await pending; } };
@@ -76,7 +78,7 @@ test('no decision toast before response; each confirmed decision retains the inl
     await run;
     assert.equal(harness.calls.filter(([kind]) => kind === 'decision').length, 1);
     const banner = harness.calls.find(([kind, value]) => kind === 'setSuccessMessage' && value !== null)?.[1];
-    assert.deepEqual(JSON.parse(JSON.stringify(banner)), { action, message: 'Evaluation committed successfully. Request status updated.' });
+    assert.deepEqual(JSON.parse(JSON.stringify(banner)), { action, message: action === 'APPROVE' ? 'Evaluation saved. The request is ready for Admin Office review.' : action === 'RETURN_FOR_CORRECTION' ? 'Return saved. The Requesting Office can revise the same request using your feedback.' : 'Decline saved. This request is final; its department can reuse the details in a new request.' });
   }
 });
 
@@ -110,6 +112,7 @@ function actualHandler(file: string, name: string, values: Record<string, unknow
   const calls: unknown[][] = [];
   let pending: Promise<unknown> = Promise.resolve();
   const context: Record<string, unknown> = {
+    describeSubmissionIssue, SubmissionResponseError, guard: { markClean() {}, clear() {} }, draftNavigation: { clear() {} }, drafts: { markSubmitted() {} }, draftsEnabled: false, templateBusy: false,
     Error, JSON, Boolean, sessionStorage: { setItem() {} },
     startTransition: (fn: () => Promise<unknown>) => { pending = fn(); },
     router: { refresh() {}, push() {} },
@@ -176,7 +179,7 @@ test('Purchasing, clearance and receiving emit saved outcomes, not optimistic fe
     } },
     { file: 'receiving/new', handler: 'handleReceivingCommit', role: 'Receiving_Custodian', values: {
       quantityVerified: true, cameraViewportMapped: true, condition: 'Damaged', invoiceFilePath: '/invoice.pdf',
-      remarks: 'Inspection recorded damage', purchaseOrderId: 'PO-test', asssetImageFilePath: '/photo.jpg', syncReceivingQueue: async () => undefined,
+      receivingQueue: [{ id: 'PO-test', purchaseRequestId: reference }], remarks: 'Inspection recorded damage', purchaseOrderId: 'PO-test', asssetImageFilePath: '/photo.jpg', syncReceivingQueue: async () => undefined,
     } },
   ];
   for (const scenario of cases) {
@@ -189,6 +192,30 @@ test('Purchasing, clearance and receiving emit saved outcomes, not optimistic fe
       assert.equal(harness.calls.filter(([kind]) => kind === 'feedback').length, ok ? 1 : 0);
       assert.equal(harness.calls.filter(([kind]) => kind === 'error').length, ok ? 0 : 1);
       if (ok && scenario.role === 'Receiving_Custodian') assert.ok(harness.calls.some(([kind, , , tone]) => kind === 'feedback' && tone === 'warning'));
+    }
+  }
+});
+
+test('actual PO submission preserves edits on failure and separates uncertainty from a saved display failure', async () => {
+  for (const outcome of ['validation', 'conflict', 'server', 'network', 'display']) {
+    const harness = actualHandler('src/app/dashboard/po/new/page.tsx', 'handlePurchaseOrderGeneration', {
+      activeUser: { role: 'Purchasing_Office' }, Role: { Purchasing_Office: 'Purchasing_Office' },
+      custodyConfirmed: true, purchasingQueue: [{ id: reference, department: { code: 'CCS' } }],
+      purchaseRequestId: reference, poNumber: 'PO-kept', syncPurchasingQueue: async () => undefined,
+      router: { refresh() { if (outcome === 'display') throw new Error('Display interrupted'); } },
+      fetch: async () => {
+        if (outcome === 'network') throw new TypeError('Failed to fetch');
+        const status = outcome === 'validation' ? 422 : outcome === 'conflict' ? 409 : outcome === 'server' ? 500 : 201;
+        return { ok: status === 201, status, json: async () => ({ error: 'Fixture explanation', errors: status === 422 ? { poNumber: { _errors: ['Review this value'] } } : undefined, data: { poNumber: 'PO-kept', qrCodeToken: 'fixture' } }) };
+      },
+    });
+    await harness.run();
+    const notice = harness.calls.filter(([kind, issue]) => kind === 'setSubmissionIssue' && issue).at(-1)?.[1] as { kind: string; reference: string };
+    assert.equal(notice.kind, outcome === 'server' || outcome === 'network' ? 'uncertain' : outcome === 'display' ? 'saved' : outcome);
+    assert.equal(notice.reference, reference);
+    if (outcome !== 'display') {
+      assert.ok(!harness.calls.some(([kind]) => kind === 'setPoNumber' || kind === 'setPurchaseRequestId' || kind === 'setCustodyConfirmed'));
+      assert.ok(!harness.calls.some(([kind]) => kind === 'feedback'));
     }
   }
 });
