@@ -1,0 +1,90 @@
+/* Shared pane geometry; office adapters retain all record and form behavior. */
+body:has(main#review-viewport-page) { overflow: hidden; }
+main#review-viewport-page {
+  display: flex; flex-direction: column; height: calc(100dvh - var(--review-shell-height, 6rem));
+  min-height: 0; overflow: hidden; padding-block: 12px;
+}
+main#review-viewport-page > * { flex-shrink: 0; min-height: 0; }
+main#review-viewport-page > * + * { margin-top: 8px; }
+main#review-viewport-page :is(.business-page-introduction,.admin-page-introduction) { padding-block: 0; }
+main#review-viewport-page :is(.business-records-toolbar,.admin-view-segments) button { min-height: 36px; padding-block: 4px; }
+main#review-viewport-page :is(.business-records-toolbar) > p { font-size: 12px; line-height: 18px; }
+main#review-viewport-page :is(.business-review-workspace,.admin-review-workspace) {
+  flex: 1; height: var(--review-height); min-height: 0; min-width: 0;
+  display: grid; grid-template-columns: 400px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr);
+  align-items: stretch; gap: 8px;
+}
+main#review-viewport-page :is(.business-fiscal-list-tools,.admin-portal-list-tools) { grid-column: 1 / -1; min-height: 0; padding: 6px; }
+main#review-viewport-page .business-fiscal-list-tools { display: flex; flex-wrap: wrap; }
+main#review-viewport-page .business-fiscal-search { flex: 1 1 12rem; }
+main#review-viewport-page :is(.business-fiscal-list-tools,.admin-portal-list-tools) :is(button,input,summary) { min-height: 36px; padding-block: 4px; }
+main#review-viewport-page :is(.business-review-list,.admin-list) {
+  position: static; display: flex; flex-direction: column; min-height: 0; max-height: none; overflow: hidden;
+}
+main#review-viewport-page :is(.business-review-list,.admin-list) > div:first-child { flex-shrink: 0; padding: 10px 12px; }
+main#review-viewport-page :is(.business-review-list-body,.admin-list-body) { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+main#review-viewport-page :is(.business-review-list-scroll,.admin-list-scroll) { flex: 1; min-height: 0; max-height: none; overflow-y: auto; padding: 6px; }
+main#review-viewport-page :is(.business-review-detail,.admin-details) {
+  min-height: 0; min-width: 0; overflow-y: auto; padding: 0 4px; scrollbar-gutter: stable; overscroll-behavior: contain;
+  scroll-padding-top: var(--review-context-height, 200px); scroll-padding-bottom: 100px;
+}
+main#review-viewport-page :is(.business-review-list-scroll,.admin-list-scroll,.business-review-detail,.admin-details) {
+  scrollbar-width: thin; scrollbar-color: var(--portal-muted, #52665e) var(--portal-mint, #f1f7f3);
+}
+main#review-viewport-page :is(.business-review-list-scroll,.admin-list-scroll,.business-review-detail,.admin-details)::-webkit-scrollbar { width: 6px; }
+main#review-viewport-page :is(.business-review-list-scroll,.admin-list-scroll,.business-review-detail,.admin-details)::-webkit-scrollbar-thumb { background: var(--portal-muted, #52665e); border: 0; border-radius: 8px; }
+main#review-viewport-page :is(.business-review-form,.admin-review-form) { display: flex; flex-direction: column; min-height: 100%; padding-bottom: 0; }
+main#review-viewport-page :is(.business-request-panels,.admin-request-panels) { display: contents; }
+main#review-viewport-page :is(.business-request-summary,.admin-request-summary) {
+  position: sticky; top: 0; z-index: 20; order: -2; flex-shrink: 0; margin-block: 0 8px; padding: 10px 12px;
+  background: white; box-shadow: 0 3px 6px #103e2810;
+}
+main#review-viewport-page :is(.business-action-bar,.admin-action-bar) {
+  position: sticky; inset: auto; bottom: 0; top: auto; order: 10; z-index: 25; flex-shrink: 0; margin-top: auto;
+  width: 100%; border: 1px solid var(--cpats-border); background: white; padding: 8px 12px;
+}
+main#review-viewport-page :is(.business-action-context,.admin-action-context) { display: none; }
+main#review-viewport-page :is(.business-action-buttons,.admin-action-buttons) { width: 100%; }
+main#review-viewport-page :is(.business-detail-tabs,.admin-detail-tabs) { margin-top: 4px; padding-bottom: 0; }
+main#review-viewport-page :is(.business-detail-tab,.admin-detail-tab,.business-copy-button,.admin-copy-button) { min-height: 32px; padding-block: 4px; }
+main#review-viewport-page .admin-list-pagination { gap: 4px; padding: 6px; }
+main#review-viewport-page .admin-list-pagination :is(button,select) { min-height: 32px; }
+main#review-viewport-page .admin-portal-progress { margin-block: 4px; grid-template-columns: repeat(auto-fit, minmax(8rem,1fr)); }
+main#review-viewport-page :is(.business-review-form,.admin-review-form) :where(input,textarea,button,select,[tabindex]) {
+  scroll-margin-top: var(--review-context-height, 200px); scroll-margin-bottom: 100px;
+}
+@media (max-width: 63.999rem) {
+  main#review-viewport-page :is(.business-review-workspace,.admin-review-workspace) { grid-template-columns: minmax(0,1fr); }
+  main#review-viewport-page [data-mobile-view="detail"] :is(.business-review-list,.admin-list),
+  main#review-viewport-page [data-mobile-view="queue"] :is(.business-review-detail,.admin-details) { display: none; }
+}
+@media (max-width: 47.999rem) {
+  main#review-viewport-page .business-records-toolbar { flex-wrap: nowrap; }
+  main#review-viewport-page .business-records-toolbar > button { width: 36px; padding-inline: 8px; font-size: 0; justify-content: center; gap: 0; }
+  main#review-viewport-page [aria-label="Queue view"] button { padding-inline: 6px; font-size: 12px; }
+  main#review-viewport-page .business-fiscal-search { flex-basis: 9rem; }
+  main#review-viewport-page .business-fiscal-list-tools > .business-queue-filters { order: 1; }
+  main#review-viewport-page .business-fiscal-list-tools > [aria-label="Decision history filters"] { order: 2; width: 100%; justify-content: space-between; flex-wrap: nowrap; }
+  main#review-viewport-page [aria-label="Decision history filters"] button { font-size: 12px; padding-inline: 4px; }
+}
+@media (min-width: 64rem) {
+  main#review-viewport-page .business-review-workspace:not(:has(.business-fiscal-list-tools)) { grid-template-rows: minmax(0,1fr); }
+  main#review-viewport-page .business-review-workspace[data-empty-queue="true"] { grid-template-rows: auto minmax(0,1fr); }
+}
+main#review-viewport-page :is(.po-preparation-workspace,.receiving-intake-workspace) {
+  flex: 1; min-height: 0; display: grid; grid-template-columns: 400px minmax(0,1fr); align-items: stretch; gap: 8px;
+}
+main#review-viewport-page :is(.po-preparation-list,.receiving-intake-list) { position: static; min-height: 0; }
+main#review-viewport-page :is(.po-preparation-list,.receiving-intake-list) > div { display: flex; flex-direction: column; height: 100%; min-height: 0; max-height: none; }
+main#review-viewport-page :is(.po-preparation-list-content,.receiving-intake-list-content) { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+main#review-viewport-page :is(.po-preparation-list-scroll,.receiving-intake-list-scroll) { flex: 1; min-height: 0; max-height: none; overflow-y: auto; }
+main#review-viewport-page :is(.po-preparation-detail,.receiving-intake-detail) { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scroll-padding-top: 160px; }
+main#review-viewport-page :is(.po-preparation-list-scroll,.receiving-intake-list-scroll,.po-preparation-detail,.receiving-intake-detail) { scrollbar-width: thin; scrollbar-color: var(--portal-muted, #52665e) var(--portal-mint, #f1f7f3); }
+main#review-viewport-page .review-record-header { position: sticky; top: 0; z-index: 20; padding: 10px 12px; background: white; border: 1px solid var(--cpats-border); border-radius: 10px; }
+main#review-viewport-page :is(.po-preparation-actions,.receiving-intake-actions) { position: sticky; inset: auto; bottom: 0; z-index: 25; background: white; }
+main#review-viewport-page :is(.po-preparation-form,.receiving-intake-form) { padding-bottom: 0; }
+@media (max-width: 63.999rem) {
+  main#review-viewport-page :is(.po-preparation-workspace,.receiving-intake-workspace) { grid-template-columns: minmax(0,1fr); }
+  main#review-viewport-page [data-mobile-view="detail"] :is(.po-preparation-list,.receiving-intake-list),
+  main#review-viewport-page [data-mobile-view="queue"] :is(.po-preparation-detail,.receiving-intake-detail) { display: none; }
+}

@@ -323,6 +323,13 @@ export interface QueueTask {
   subtitle: string;
   dateLabel: string;
   justificationPreview?: string;
+  createdAt?: string;
+  department?: string;
+  status?: string;
+  decisionStatus?: string;
+  officeCode?: string;
+  dateTime?: string;
+  timing?: import('@/shared/queue-insights').QueueTiming;
 }
 
 function QueueSkeleton() {
