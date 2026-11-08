@@ -1,0 +1,68 @@
+/* System Administrator opt-in; reuse institutional tokens without affecting other roles. */
+.system-account-menu { position: relative; }
+.system-account-menu > summary { min-height: var(--cpats-control-touch); padding: var(--cpats-space-8); align-content: center; border-radius: .5rem; color: #cce0d4; font-size: var(--cpats-type-12); cursor: pointer; }
+.system-account-menu strong { color: white; }
+.system-account-menu > summary:hover { background: #ffffff14; }
+.system-account-menu > summary:focus-visible { outline: 2px solid #e5ce7f; outline-offset: 3px; }
+.system-account-menu > div { position: absolute; right: 0; top: 100%; z-index: 50; width: max-content; max-width: min(22rem, 80vw); padding: var(--cpats-space-16); border: 1px solid var(--portal-line); border-radius: var(--cpats-radius); background: white; color: var(--portal-ink); box-shadow: var(--portal-shadow); }
+body:has(.system-portal-header) main:is(.system-accounts-page,:has(> section[aria-labelledby="guide-title"])) {
+  max-width: 100rem;
+  min-width: 0;
+  padding: var(--cpats-space-16);
+  color: var(--portal-ink);
+  & > :not(:last-child) { margin-block: 0 var(--cpats-space-12); }
+  & > .system-page-introduction,
+  & > section[aria-labelledby="guide-title"] { padding: var(--cpats-space-4) 0 var(--cpats-space-12); border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+  & > section[aria-labelledby="guide-title"]::before { display: none; }
+  & h1 { color: var(--portal-ink); font-size: var(--cpats-type-24); line-height: 1.25; font-weight: 750; letter-spacing: -.035em; }
+  & :is(h2,h3) { color: var(--portal-ink); }
+  & .system-page-introduction > p:first-child { display: flex; align-items: center; gap: var(--cpats-space-8); color: var(--portal-muted); }
+  & .system-page-introduction > p:last-child { color: var(--portal-muted); }
+  & :where(form,section,article,li,details,div):where([class~="bg-white"][class~="border"]) { border-color: var(--portal-line); border-radius: var(--cpats-radius); box-shadow: var(--portal-shadow); }
+  & :is(button,a)[class~="bg-emerald-700"] { background: var(--portal-forest); color: white; }
+  & :is(button,a)[class~="bg-emerald-700"]:hover { background: #16563f; }
+  & :is(input,select):focus { border-color: var(--portal-emerald); }
+  & :focus-visible { outline: 2px solid var(--portal-emerald); outline-offset: 3px; }
+  & :is(button,a,input,select,summary) { transition-duration: 150ms; }
+  & .system-accounts-forms { gap: var(--cpats-space-16); align-items: stretch; }
+  & .system-accounts-forms > form { border-top: 3px solid var(--portal-emerald); }
+  & .system-accounts-forms h2,
+  & #account-list-heading { display: flex; align-items: center; gap: var(--cpats-space-8); }
+  & :is(h2,.system-page-introduction) svg { color: var(--portal-emerald); }
+  & .system-accounts-forms button,
+  & section[aria-labelledby="account-list-heading"] > div:first-child > button { display: inline-flex; align-items: center; justify-content: center; gap: var(--cpats-space-8); }
+  & .system-accounts-forms > form > p,
+  & section[aria-labelledby="account-list-heading"] > div:first-child p,
+  & .system-accounts-list article > p:last-of-type { color: var(--portal-muted); }
+  & .system-accounts-departments [aria-label="Existing departments"] > span { border-radius: .5rem; background: var(--portal-mint); color: var(--portal-forest); }
+  & .system-accounts-list article { border-color: var(--portal-line); background: #f7faf8; }
+  & .system-accounts-list article:focus-within { border-color: var(--portal-emerald); }
+  & .system-accounts-list .system-account-status { display: inline-flex; align-items: center; gap: var(--cpats-space-4); border-radius: .75rem; padding: var(--cpats-space-4) var(--cpats-space-8); font-weight: 600; }
+  & .system-accounts-list article > div:last-child:not(:first-child) { display: flex; flex-wrap: wrap; gap: var(--cpats-space-8); }
+  & .system-accounts-list button { background: white; border-color: var(--portal-line); }
+  & .system-accounts-list button:hover { background: var(--portal-mint); border-color: var(--portal-emerald); }
+  & section[aria-labelledby="guide-tasks-title"] li[class] { border-top: 3px solid var(--portal-emerald); }
+  & section[aria-labelledby="guide-tasks-title"] li:is(:hover,:focus-within) { background: #f7faf8; border-color: var(--portal-emerald); }
+  & section[aria-labelledby="guide-answers-title"] summary { display: flex; align-items: center; justify-content: space-between; gap: var(--cpats-space-12); list-style: none; }
+  & section[aria-labelledby="guide-answers-title"] summary::-webkit-details-marker { display: none; }
+  & section[aria-labelledby="guide-answers-title"] summary::after { content: ''; flex-shrink: 0; width: var(--cpats-space-8); height: var(--cpats-space-8); border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); transition: transform 150ms; }
+  & section[aria-labelledby="guide-answers-title"] details[open] summary::after { transform: rotate(225deg); }
+}
+@media (min-width: 48rem) {
+  body:has(.system-portal-header) main:is(.system-accounts-page,:has(> section[aria-labelledby="guide-title"])) { padding-inline: var(--cpats-space-24); }
+}
+@media (max-width: 47.999rem) {
+  .system-portal-header > div > div,
+  .system-portal-header > div > div > div { flex-wrap: wrap; }
+}
+@media (min-width: 64rem) and (max-width: 79.999rem) {
+  .system-portal-header > div { display: block; }
+  .system-portal-header > div > div { display: flex; }
+  .system-portal-header nav a { min-height: 3rem; }
+}
+@media (max-width: 63.999rem) {
+  body:has(.system-portal-header) .system-accounts-page :is(input,select,button,summary) { scroll-margin-top: 16rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  body:has(.system-portal-header) main * { transition: none !important; scroll-behavior: auto !important; }
+}

@@ -1,0 +1,57 @@
+.system-accounts-page {
+  --text-xs: var(--cpats-type-12);
+  --text-sm: var(--cpats-type-14);
+  --text-base: var(--cpats-type-16);
+  --text-lg: var(--cpats-type-20);
+  --text-2xl: var(--cpats-type-24);
+  --text-3xl: var(--cpats-type-24);
+  --spacing: var(--cpats-space-4);
+  --accounts-control-height: var(--cpats-control-touch);
+  min-width: 0;
+  max-width: 120rem;
+  padding: var(--cpats-space-16) max(var(--cpats-space-16), env(safe-area-inset-right)) max(var(--cpats-space-16), env(safe-area-inset-bottom)) max(var(--cpats-space-16), env(safe-area-inset-left));
+  font-size: var(--cpats-type-14);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.system-accounts-page > :not(:last-child) { margin-block: 0 var(--cpats-space-16); }
+.system-accounts-page > div:first-child { padding: var(--cpats-space-16); border-radius: var(--cpats-radius); }
+.system-accounts-page > div:first-child > p:first-child { text-transform: none; letter-spacing: normal; font-weight: 600; }
+.system-accounts-page h1 { font-size: clamp(var(--cpats-type-20), 1rem + .5vw, var(--cpats-type-24)); font-weight: 600; line-height: 1.25; }
+.system-accounts-page h2 { font-size: var(--cpats-type-16); }
+.system-accounts-page h3 { font-size: var(--cpats-type-14); line-height: 1.5; }
+.system-accounts-page :where(form, label, article, section, input, select) { min-width: 0; }
+.system-accounts-page :where(form, section) { padding: var(--cpats-space-16); border-radius: var(--cpats-radius); box-shadow: 0 1px 4px #0f172a08; }
+.system-accounts-forms { gap: var(--cpats-space-16); align-items: start; }
+.system-accounts-page :where(input, select, button, summary) { min-height: var(--accounts-control-height); font-size: var(--cpats-type-14); }
+.system-accounts-page :where(input, select) { font-size: var(--cpats-type-16); max-width: 100%; padding-block: var(--cpats-space-8); line-height: 1.25; }
+.system-accounts-page :where(button, summary) { padding-block: var(--cpats-space-4); }
+.system-accounts-page :focus-visible { outline: 2px solid var(--cpats-focus); outline-offset: 2px; }
+.system-accounts-page :where(input, select, button, summary) { scroll-margin-block: 8rem var(--cpats-space-16); }
+.system-accounts-page form > :is(div, button) { margin-top: var(--cpats-space-16); }
+.system-accounts-page label > :is(input, select) { margin-top: var(--cpats-space-4); }
+.system-accounts-departments summary { display: list-item; }
+.system-accounts-departments [aria-label="Existing departments"] > span { padding: var(--cpats-space-4) var(--cpats-space-8); }
+.system-accounts-list { grid-template-columns: minmax(0, 1fr); margin-top: var(--cpats-space-16); gap: var(--cpats-space-12); }
+.system-accounts-list article { display: flex; flex-direction: column; padding: var(--cpats-space-12); border-radius: var(--cpats-radius); }
+.system-accounts-list article > div:first-child { flex-wrap: nowrap; align-items: start; }
+.system-accounts-list h3 { flex: 1 1 0; }
+.system-accounts-list article > div:first-child > span { flex-shrink: 0; font-size: var(--cpats-type-12); font-weight: 500; text-transform: none; border-radius: var(--cpats-space-4); }
+.system-accounts-list article > div:last-child:not(:first-child) { margin-top: auto; padding-top: var(--cpats-space-12); border-top: 0; }
+.system-accounts-list article > p:last-of-type { margin-bottom: var(--cpats-space-12); }
+.system-accounts-page > section { margin-top: var(--cpats-space-16); }
+body:has(.system-accounts-page) { min-height: 100dvh; }
+@media (min-width: 48rem) {
+  .system-accounts-page { padding: var(--cpats-space-24) max(var(--cpats-space-24), env(safe-area-inset-right)) max(var(--cpats-space-24), env(safe-area-inset-bottom)) max(var(--cpats-space-24), env(safe-area-inset-left)); }
+  .system-accounts-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 64rem) {
+  .system-accounts-page { --accounts-control-height: var(--cpats-control-default); padding-inline: max(clamp(var(--cpats-space-16), 2vw, var(--cpats-space-32)), env(safe-area-inset-left)) max(clamp(var(--cpats-space-16), 2vw, var(--cpats-space-32)), env(safe-area-inset-right)); }
+  .system-accounts-page :where(input, select) { font-size: var(--cpats-type-14); }
+  .system-accounts-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .system-accounts-page :where(input, select, button, summary) { scroll-margin-top: 5rem; }
+}
+@media (pointer: coarse) {
+  .system-accounts-page { --accounts-control-height: var(--cpats-control-touch); }
+  .system-accounts-page :where(input, select) { font-size: var(--cpats-type-16); }
+}

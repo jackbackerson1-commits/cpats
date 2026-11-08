@@ -36,6 +36,24 @@
  * than inheriting the OS preference.
  */
 :root {
+  /* Opt-in procurement UI tokens. Existing office layouts keep their defaults. */
+  --cpats-type-12: 0.75rem;
+  --cpats-type-14: 0.875rem;
+  --cpats-type-16: 1rem;
+  --cpats-type-20: 1.25rem;
+  --cpats-type-24: 1.5rem;
+  --cpats-space-4: 0.25rem;
+  --cpats-space-8: 0.5rem;
+  --cpats-space-12: 0.75rem;
+  --cpats-space-16: 1rem;
+  --cpats-space-24: 1.5rem;
+  --cpats-space-32: 2rem;
+  --cpats-control-compact: 2rem;
+  --cpats-control-default: 2.25rem;
+  --cpats-control-touch: 2.75rem;
+  --cpats-radius: 0.5rem;
+  --cpats-border: #e2e8f0;
+  --cpats-focus: #047857;
   --background: #f8fafc;
   --foreground: #0f172a;
   color-scheme: light;
