@@ -1,0 +1,52 @@
+/* Global shell and header presentation; role classes still theme their pages. */
+.cpats-dashboard-shell { height: 100dvh; min-height: 0; overflow: hidden; }
+.cpats-dashboard-content { flex: 1 1 0; min-height: 0; min-width: 0; overflow-y: auto; overscroll-behavior-y: contain; }
+.cpats-dashboard-content > main { padding-top: 12px; }
+header#cpats-header {
+  height: 64px; min-height: 64px; max-height: 64px; flex: 0 0 64px; padding: 0;
+  background: var(--portal-forest); color: var(--color-white); border: 0; border-bottom: 2px solid var(--portal-gold); box-shadow: none;
+}
+#cpats-header .cpats-header-inner {
+  display: flex; align-items: center; gap: 20px; width: 100%; max-width: 100rem; height: 62px; min-height: 0;
+  margin-inline: auto; padding: 0 16px;
+}
+#cpats-header .cpats-header-brand { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 10px; color: var(--color-white); text-decoration: none; border-radius: 6px; }
+#cpats-header img.cpats-header-logo { width: 40px; height: 40px; padding: 2px; border-radius: 50%; background: var(--color-white); object-fit: contain; }
+#cpats-header .cpats-header-wordmark { display: inline-flex; align-items: center; gap: 10px; white-space: nowrap; font-size: 20px; font-weight: 750; letter-spacing: -.025em; }
+#cpats-header .cpats-header-institution { padding: 3px 5px; border-radius: 4px; background: color-mix(in srgb, var(--portal-gold) 12%, transparent); color: color-mix(in srgb, var(--portal-gold) 80%, var(--color-white)); font-size: 10px; font-weight: 700; letter-spacing: .08em; }
+#cpats-header .cpats-header-nav { display: flex; flex: 1 1 0; align-items: center; gap: 4px; min-width: 0; height: auto; padding: 3px; overflow-x: auto; scrollbar-width: none; }
+#cpats-header .cpats-header-nav::-webkit-scrollbar { display: none; }
+#cpats-header a.cpats-header-link { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 8px; min-height: 36px; height: 36px; padding: 8px 12px; border: 0; border-radius: 6px; color: var(--color-white); font-size: 14px; font-weight: 600; line-height: 20px; white-space: nowrap; }
+#cpats-header .cpats-header-link svg { width: 16px; height: 16px; }
+#cpats-header a.cpats-header-link:hover { background: color-mix(in srgb, var(--color-white) 5%, transparent); }
+#cpats-header a.cpats-header-link[aria-current="page"] { background: color-mix(in srgb, var(--color-white) 10%, transparent); border: 0; color: var(--color-white); }
+#cpats-header .cpats-header-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; min-height: 0; padding: 0; }
+#cpats-header .cpats-header-actions button[aria-label^="Notifications"] { width: 40px; height: 40px; min-height: 40px; padding: 8px; color: var(--color-white); border-color: color-mix(in srgb, var(--color-white) 20%, transparent); border-radius: 8px; }
+#cpats-header :is(.cpats-header-link,.cpats-header-brand,.cpats-avatar,.cpats-mobile-toggle,button[aria-label^="Notifications"]):focus-visible { outline: 2px solid var(--portal-gold); outline-offset: -2px; }
+#cpats-header .cpats-account { position: relative; }
+#cpats-header .cpats-avatar { display: grid; place-items: center; width: 38px; height: 38px; padding: 0; border: 1px solid color-mix(in srgb, var(--color-white) 30%, transparent); border-radius: 50%; background: color-mix(in srgb, var(--color-white) 10%, transparent); color: var(--color-white); font-size: 14px; font-weight: 700; cursor: pointer; list-style: none; }
+#cpats-header .cpats-avatar::-webkit-details-marker { display: none; }
+#cpats-header .cpats-avatar:hover { background: color-mix(in srgb, var(--color-white) 15%, transparent); }
+#cpats-header .cpats-account-dropdown { position: absolute; right: 0; top: calc(100% + 10px); z-index: 60; width: 280px; max-width: calc(100vw - 32px); padding: 12px; border: 1px solid var(--portal-line); border-radius: 10px; background: var(--color-white); color: var(--portal-ink); box-shadow: var(--portal-shadow); }
+#cpats-header .cpats-account-name { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+#cpats-header .cpats-account-email { margin-top: 4px; color: var(--portal-muted); font-size: 12px; overflow-wrap: anywhere; }
+#cpats-header .cpats-account-dropdown button { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 40px; margin-top: 12px; padding: 8px; border: 0; border-radius: 6px; color: var(--portal-forest); background: var(--portal-mint); font-size: 14px; font-weight: 600; cursor: pointer; }
+#cpats-header .cpats-account-dropdown button:focus-visible { outline: 2px solid var(--portal-emerald); outline-offset: 1px; }
+#cpats-header .cpats-account-dropdown button:disabled { opacity: .6; cursor: wait; }
+#cpats-header .cpats-mobile-toggle { display: none; align-items: center; justify-content: center; width: 40px; height: 40px; padding: 8px; border-radius: 6px; color: var(--color-white); background: transparent; }
+@media (min-width: 48rem) { #cpats-header .cpats-header-inner { padding-inline: 24px; } }
+@media (min-width: 64rem) { #cpats-header .cpats-header-inner { padding-inline: clamp(16px, 2vw, 32px); } }
+@media (max-width: 47.999rem) {
+  #cpats-header .cpats-header-inner { justify-content: space-between; gap: 8px; }
+  #cpats-header .cpats-header-wordmark { font-size: 18px; gap: 6px; }
+  #cpats-header .cpats-header-brand { gap: 6px; }
+  #cpats-header .cpats-header-actions { gap: 4px; }
+  #cpats-header .cpats-mobile-toggle { display: inline-flex; }
+  #cpats-header .cpats-header-nav { display: none; position: absolute; top: 64px; left: 0; right: 0; flex-direction: column; align-items: stretch; gap: 4px; max-height: calc(100dvh - 64px); padding: 12px 16px; overflow-y: auto; background: var(--portal-forest); border-bottom: 2px solid var(--portal-gold); }
+  #cpats-header .cpats-header-nav[data-open="true"] { display: flex; }
+}
+@media (max-width: 23rem) {
+  #cpats-header .cpats-header-wordmark { font-size: 16px; gap: 4px; }
+  #cpats-header .cpats-header-institution { font-size: 9px; padding-inline: 4px; }
+}
+@media (prefers-reduced-motion: reduce) { #cpats-header * { transition: none; } }
