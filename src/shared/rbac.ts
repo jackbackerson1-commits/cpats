@@ -20,6 +20,7 @@ export const ROUTE_ROLE_MAP: Record<string, Role[]> = {
   '/dashboard/assets': ASSET_REGISTER_ROLES,
   '/dashboard/system/accounts': [Role.System_Administrator],
   '/dashboard/notifications': Object.values(Role),
+  '/dashboard/help': Object.values(Role),
 };
 
 export function isRoleAllowed(userRole: Role, allowedRoles: Role | Role[]): boolean {
