@@ -42,6 +42,20 @@ export async function proxy(request: NextRequest) {
 
   const user = await currentSessionUser(request);
 
+  if (pathname.startsWith('/uploads/')) {
+    if (!user) return NextResponse.json({ success: false, error: 'Sign in to view this attachment.' }, { status: 401 });
+    const evidenceUrl = request.nextUrl.clone();
+    evidenceUrl.pathname = `/api/evidence/${pathname.slice('/uploads/'.length)}`;
+    const evidenceHeaders = new Headers(request.headers);
+    evidenceHeaders.set('x-user-id', user.id);
+    evidenceHeaders.set('x-user-email', user.email);
+    evidenceHeaders.set('x-user-role', user.role);
+    evidenceHeaders.set('x-user-department-id', user.departmentId);
+    evidenceHeaders.set('x-user-department-code', user.departmentCode);
+    evidenceHeaders.set('x-user-session-version', String(user.sessionVersion ?? 0));
+    return NextResponse.rewrite(evidenceUrl, { request: { headers: evidenceHeaders } });
+  }
+
   if (pathname.startsWith('/dashboard')) {
     if (!user) {
       const loginUrl = new URL('/login', request.url);
@@ -83,5 +97,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/api/:path*', '/login'],
+  matcher: ['/dashboard/:path*', '/api/:path*', '/uploads/:path*', '/login'],
 };
