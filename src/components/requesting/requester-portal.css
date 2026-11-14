@@ -1,0 +1,108 @@
+/* Requesting Office opt-in theme. Other office workspaces keep their tokens. */
+.requester-portal-header,
+.requester-workspace,
+div:has(> .requester-portal-header) {
+  --request-forest: var(--portal-forest);
+  --request-emerald: var(--portal-emerald);
+  --request-mint: var(--portal-mint);
+  --request-gold: var(--portal-gold);
+  --request-ink: var(--portal-ink);
+  --request-muted: var(--portal-muted);
+  --request-line: var(--portal-line);
+  --request-shadow: var(--portal-shadow);
+  --cpats-radius: 1rem;
+  --cpats-focus: #1f7a4d;
+  --cpats-control-default: 2.75rem;
+}
+div:has(> .requester-portal-header) { background: var(--request-mint); }
+.requester-portal-header {
+  background: var(--request-forest);
+  border-bottom: 3px solid var(--request-gold);
+  color: white;
+  box-shadow: 0 4px 20px #0b3d2e18;
+}
+.requester-portal-header > div { max-width: 100rem; padding-inline: 1rem; }
+.requester-portal-header > div > div { min-height: 5rem; }
+.requester-portal-header img { width: 3rem; height: 3rem; padding: .25rem; border-radius: 50%; background: white; }
+.requester-portal-identity > span:last-child { color: #cce0d4; margin-top: .125rem; }
+.requester-portal-institution { display: inline-block; margin-left: .75rem; color: #e5ce7f; font-size: .625rem; letter-spacing: .12em; vertical-align: middle; }
+.requester-portal-welcome { display: none; color: #cce0d4; font-size: .8125rem; }
+.requester-portal-welcome strong { color: white; }
+.requester-portal-header nav { gap: 1rem; padding-top: .125rem; }
+.requester-portal-header nav a { min-height: 3rem; padding: .625rem .25rem; color: #d4e6dc; border-color: transparent; font-size: .875rem; }
+.requester-portal-header nav a:hover { color: white; border-color: #90b59e; }
+.requester-portal-header nav a[aria-current="page"] { color: white; border-color: var(--request-gold); }
+.requester-portal-header button[aria-label^="Notifications"],
+.requester-portal-header .requester-signout { color: #e4eee8; border-color: #ffffff38; min-height: 2.75rem; }
+.requester-portal-header button[aria-label^="Notifications"] { width: 2.75rem; }
+.requester-portal-header button[aria-label^="Notifications"]:hover,
+.requester-portal-header .requester-signout:hover { background: #ffffff14; color: white; }
+.requester-portal-header nav a:focus-visible,
+.requester-portal-header > div > div > a:focus-visible,
+.requester-portal-header .requester-signout:focus-visible,
+.requester-portal-header button[aria-label^="Notifications"]:focus-visible { outline: 2px solid #e5ce7f; outline-offset: 3px; }
+.requester-workspace .requester-page-introduction {
+  padding: .5rem 0 1rem;
+  border: 0;
+  background: transparent;
+}
+.requester-workspace .requester-page-introduction::before { display: none; }
+.requester-workspace .requester-page-introduction h1 { color: var(--request-ink); font-size: clamp(1.75rem, 1.4rem + .6vw, 2rem); font-weight: 750; letter-spacing: -.035em; }
+.requester-workspace .requester-page-introduction p { margin-top: .625rem; color: var(--request-muted); }
+.requester-workspace .requester-form-section { border-color: #e5ede8; box-shadow: var(--request-shadow); }
+.requester-workspace .requester-form-section h2 { font-size: 1.125rem; }
+.requester-workspace .requester-form-section > div:first-child > span { background: var(--request-forest); color: white; border-radius: .625rem; }
+.requester-workspace .requester-primary { background: var(--request-forest); box-shadow: 0 3px 8px #0b3d2e18; }
+.requester-workspace .requester-primary:hover { background: #16563f; }
+.requester-workspace .requester-primary:disabled { background: #cbd5e1; color: #334155; box-shadow: none; }
+.requester-workspace :is(button, a, input, select, textarea, summary) { transition-duration: 150ms; }
+.requester-workspace :is(input, select, textarea):focus { border-color: var(--request-emerald); }
+.requester-workspace [data-request-status] { border-radius: .75rem; padding: .5rem .625rem; font-weight: 600; }
+.requester-workspace [data-action-needed="true"] { box-shadow: inset 3px 0 #b77910; }
+@media (min-width: 48rem) {
+  .requester-portal-header > div { padding-inline: 1.5rem; }
+  .requester-portal-welcome { display: block; }
+}
+@media (min-width: 64rem) {
+  .requester-portal-header > div { display: grid; grid-template-columns: auto 1fr auto; align-items: center; column-gap: 2.5rem; min-height: 5.5rem; padding-inline: 2rem; }
+  .requester-portal-header > div > div { display: contents; }
+  .requester-portal-header > div > div > a { grid-column: 1; grid-row: 1; }
+  .requester-portal-header > div > div > div { grid-column: 3; grid-row: 1; }
+  .requester-portal-header nav { grid-column: 2; grid-row: 1; padding: 0; }
+  .requester-portal-header nav a { min-height: 5.25rem; align-content: center; }
+  .requester-portal-welcome { display: none; }
+}
+@media (min-width: 80rem) { .requester-portal-welcome { display: block; } }
+@media (max-width: 359px) {
+  .requester-portal-institution { display: none; }
+  .requester-portal-header > div > div > a { gap: .5rem; }
+  .requester-portal-header > div > div > div { gap: .25rem; }
+  .requester-portal-header nav { gap: .5rem; }
+  .requester-portal-header nav a { font-size: .75rem; gap: .375rem; padding-inline: 0; }
+  .requester-portal-header nav a svg { width: .875rem; height: .875rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .requester-workspace *, .requester-portal-header * { transition: none !important; scroll-behavior: auto !important; }
+}
+
+/* Local page introductions; the global navigation keeps its existing geometry. */
+main.requester-workspace > header.requester-page-introduction {
+  padding-bottom: 0;
+  margin-bottom: var(--cpats-space-8);
+}
+main.requester-workspace > header.requester-page-introduction p { margin-top: var(--cpats-space-8); }
+
+/* Requesting Office Help only; shared guide content and other roles are unchanged. */
+body:has(.requester-portal-header) main:has(> section[aria-labelledby="guide-title"]) {
+  & > section:not(:last-child) { margin-block: 0 var(--cpats-space-12); }
+  & > section:last-child { margin-top: 0; }
+  & > section[aria-labelledby="guide-title"] { padding-bottom: 0; margin-bottom: var(--cpats-space-8); }
+  & > section[aria-label="Search help"] { padding: var(--cpats-space-12) var(--cpats-space-16); }
+  & > section[aria-label="Search help"] > p { margin-top: var(--cpats-space-4); }
+  & > section > h2 { margin-bottom: var(--cpats-space-8); }
+  & section[aria-labelledby="guide-tasks-title"] ul { gap: var(--cpats-space-12); }
+  & section[aria-labelledby="guide-tasks-title"] li { padding: var(--cpats-space-12) var(--cpats-space-16); }
+  & section[aria-labelledby="guide-tasks-title"] li > p { margin-block: var(--cpats-space-4) var(--cpats-space-8); }
+  & section[aria-labelledby="guide-answers-title"] details { padding: var(--cpats-space-4) var(--cpats-space-16); }
+  & section[aria-labelledby="guide-answers-title"] details + details { margin-top: var(--cpats-space-8); }
+}
