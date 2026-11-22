@@ -1,9 +1,17 @@
 // src/app/api/pr/queue/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { Role, PRStatus } from '@prisma/client';
+import { Role, PRStatus, type Prisma } from '@prisma/client';
 import { prisma } from '@/shared/prisma';
 import { QueueFetchSchema } from '@/validation/queue.schema';
 import { authorizeRequest } from '@/shared/rbac';
+
+const financialClearanceOrders = {
+  OR: [
+    { purchaseMethod: null },
+    { purchaseMethod: { not: 'ONLINE_CASH' } },
+    { onlinePurchase: { isNot: null } },
+  ],
+} satisfies Prisma.PurchaseOrderWhereInput;
 
 export async function POST(request: NextRequest) {
   try {
@@ -63,18 +71,18 @@ export async function POST(request: NextRequest) {
       case Role.Business_Office:
         const businessQueue = await prisma.purchaseRequest.findMany({
           where: {
-            status: {
-              in: [
-                PRStatus.Pending_Business_Approval,
-                PRStatus.Awaiting_Check_Issuance,
-                PRStatus.Returned_for_Correction
-              ]
-            }
+            OR: [
+              { status: { in: [PRStatus.Pending_Business_Approval, PRStatus.Returned_for_Correction] } },
+              { status: PRStatus.Awaiting_Check_Issuance, purchaseOrders: { some: financialClearanceOrders } },
+            ],
           },
           orderBy: { createdAt: 'asc' },
           include: {
             department: { select: { code: true, name: true } },
-            purchaseOrders: { select: { id: true, poNumber: true, isCheckIssued: true } },
+            purchaseOrders: {
+              where: financialClearanceOrders,
+              select: { id: true, poNumber: true, isCheckIssued: true, paymentType: true, purchaseMethod: true, onlinePurchase: { select: { stage: true } } },
+            },
             auditLogs: {
               orderBy: { createdAt: 'desc' },
               include: {
@@ -120,12 +128,23 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: true, data: adminQueue }, { status: 200 });
 
       case Role.Purchasing_Office:
-        const purchasingQueue = await prisma.purchaseRequest.findMany({
-          where: { status: PRStatus.Approved_Awaiting_PO },
-          orderBy: { createdAt: 'asc' },
-          include: { department: { select: { code: true, name: true } }, auditLogs: { select: { createdAt: true, previousState: true, newState: true } } }
-        });
-        return NextResponse.json({ success: true, data: purchasingQueue }, { status: 200 });
+        const [purchasingQueue, pendingOnlineCheckouts] = await Promise.all([
+          prisma.purchaseRequest.findMany({
+            where: { status: PRStatus.Approved_Awaiting_PO },
+            orderBy: { createdAt: 'asc' },
+            include: { department: { select: { code: true, name: true } }, auditLogs: { select: { createdAt: true, previousState: true, newState: true } } },
+          }),
+          prisma.purchaseOrder.findMany({
+            where: {
+              purchaseMethod: 'ONLINE_CASH', isCheckIssued: false, onlinePurchase: { is: null },
+              purchaseRequest: { status: PRStatus.Awaiting_Check_Issuance },
+            },
+            orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+            take: 5,
+            select: { id: true, poNumber: true, purchaseRequestId: true, purchaseRequest: { select: { department: { select: { code: true } } } } },
+          }),
+        ]);
+        return NextResponse.json({ success: true, data: purchasingQueue, pendingOnlineCheckouts }, { status: 200 });
 
       case Role.Receiving_Custodian:
         const receivingQueue = await prisma.purchaseOrder.findMany({
