@@ -1,0 +1,49 @@
+.business-clearance-page .clearance-form input[type="radio"] { min-height: 0; padding-block: 0; }
+.business-clearance-page .business-queue-subtitle { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; max-width: 100%; }
+.business-clearance-page .clearance-form fieldset label { min-height: var(--business-control-height); padding: var(--cpats-space-12); }
+.business-clearance-page .clearance-form fieldset label span > span + span { margin-top: var(--cpats-space-4); }
+.business-clearance-page .clearance-form label[for^="gate-"] { padding: var(--cpats-space-12); }
+.business-clearance-page .clearance-form :where(input, button, select, [tabindex]),
+.business-clearance-page #clearance-controls { scroll-margin-top: calc(var(--business-header-height) + var(--business-action-height, 0px) + var(--cpats-space-24)); scroll-margin-bottom: calc(var(--business-action-height, 0px) + var(--cpats-space-16)); }
+.clearance-billing-item { grid-template-columns: minmax(0, 1fr); }
+.clearance-item-errors { grid-column: 1 / -1; }
+@media (min-width: 48rem) {
+  .clearance-billing-item { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .clearance-item-name { grid-column: 1 / -1; }
+}
+@media (min-width: 80rem) {
+  .clearance-billing-item { grid-template-columns: minmax(0, 1fr) minmax(3rem, 0.25fr) minmax(7rem, 0.55fr) minmax(7rem, 0.55fr); }
+  .clearance-item-name { grid-column: auto; }
+}
+@media (max-width: 63.999rem) {
+  .business-clearance-page .clearance-form :where(input, button, select, [tabindex]),
+  .business-clearance-page #clearance-controls { scroll-margin-top: calc(var(--business-header-height) + var(--cpats-space-16)); }
+}
+
+.business-clearance-page .business-review-detail,
+.business-clearance-page .business-review-list {
+  scroll-margin-top: var(--cpats-space-12);
+}
+
+.business-clearance-page .clearance-form :is(input, button, [tabindex]),
+.business-clearance-page .clearance-documents summary {
+  scroll-margin-block: var(--cpats-space-12);
+}
+
+.business-clearance-page :is(.business-copy-button, .review-record-header button) {
+  min-width: var(--cpats-control-touch);
+  min-height: var(--cpats-control-touch);
+}
+
+.business-clearance-page .review-record-header h2 {
+  display: block;
+  overflow: visible;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 63.999rem) {
+  .business-clearance-page .business-review-list-body,
+  .business-clearance-page .business-review-list-scroll {
+    overflow: visible;
+  }
+}

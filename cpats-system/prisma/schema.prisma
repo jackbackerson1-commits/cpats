@@ -1,0 +1,405 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+// ==========================================
+// ENUMS (Strict State Machine & RBAC)
+// ==========================================
+
+enum Role {
+  Requesting_Office
+  Business_Office
+  Admin_Office
+  Purchasing_Office
+  Receiving_Custodian
+  Global_Auditor
+  System_Administrator
+}
+
+enum AccountStatus {
+  Pending
+  Active
+  Disabled
+}
+
+enum AccountTokenPurpose {
+  Activation
+  Password_Reset
+}
+
+enum PRStatus {
+  Draft
+  Pending_Business_Approval
+  Returned_for_Correction
+  Pending_Admin_Approval
+  Approved_Awaiting_PO
+  Awaiting_Check_Issuance
+  Ready_for_Purchase
+  Received_and_Closed
+  Declined
+}
+
+enum ConditionNote {
+  Good
+  Damaged
+}
+
+enum PaymentType {
+  CASH_CHECK
+  CREDIT_TERMS
+}
+
+enum PurchaseMethod {
+  LOCAL_CASH
+  ONLINE_CASH
+  SUPPLIER_CREDIT
+}
+
+enum EmailOutboxStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+// ==========================================
+// ENTITIES
+// ==========================================
+
+model Department {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  code      String   @unique
+  users     User[]
+  prs       PurchaseRequest[]
+  requestDrafts RequestDraft[]
+  requestTemplates RequestTemplate[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model User {
+  id           String       @id @default(uuid())
+  email        String       @unique
+  passwordHash String
+  role         Role
+  accountStatus AccountStatus @default(Active)
+  sessionVersion Int @default(0)
+  activatedAt DateTime?
+  emailVerifiedAt DateTime?
+  departmentId String
+  department   Department   @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  auditLogs    AuditLog[]
+  requestDrafts RequestDraft[]
+  requestTemplates RequestTemplate[]
+  notifications Notification[]
+  purchaseOrderDocuments PurchaseOrderDocument[]
+  receivingFormRevisions ReceivingFormRevision[] @relation("FormRevisionAuthor")
+  receivingFormExports ReceivingFormRevision[] @relation("FormRevisionExporter")
+  notificationPreference NotificationPreference?
+  accountTokens AccountToken[]
+  accountActions AccountManagementEvent[] @relation("AccountActionActor")
+  accountEvents AccountManagementEvent[] @relation("AccountActionTarget")
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  
+  @@index([role])
+  @@index([departmentId])
+}
+
+model AccountToken {
+  id String @id @default(uuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purpose AccountTokenPurpose
+  tokenHash String @unique
+  deliveredViaSmtp Boolean @default(false)
+  expiresAt DateTime
+  usedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId, purpose, usedAt])
+}
+
+model AccountManagementEvent {
+  id String @id @default(uuid())
+  actorId String?
+  actor User? @relation("AccountActionActor", fields: [actorId], references: [id], onDelete: SetNull)
+  targetUserId String
+  targetUser User @relation("AccountActionTarget", fields: [targetUserId], references: [id], onDelete: Restrict)
+  action String
+  createdAt DateTime @default(now())
+
+  @@index([actorId, createdAt])
+  @@index([targetUserId, createdAt])
+}
+
+model PurchaseRequest {
+  id                  String          @id @default(uuid())
+  departmentId        String
+  department          Department      @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  creatorId           String
+  itemsPayload        Json            
+  justification       String          @db.Text
+  status              PRStatus        @default(Draft)
+  isDirectPoBypass    Boolean         @default(false)
+  adminProofFilePath  String?      
+  purchaseOrders      PurchaseOrder[]
+  auditLogs           AuditLog[]
+  notifications       Notification[]
+  sourceDraft         RequestDraft?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  @@index([status])
+  @@index([departmentId])
+}
+
+// Private unfinished forms. Saving never creates a procurement record or audit event.
+model RequestDraft {
+  id                 String @id @default(uuid())
+  ownerId            String
+  owner              User @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  departmentId       String
+  department         Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  payload            Json
+  version            Int @default(1)
+  submittedRequestId String? @unique
+  submittedRequest   PurchaseRequest? @relation(fields: [submittedRequestId], references: [id], onDelete: Restrict)
+  submittedAt        DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([ownerId, departmentId, submittedAt, updatedAt, id])
+}
+
+model PurchaseOrder {
+  id                String            @id @default(uuid())
+  poNumber          String            @unique
+  purchaseRequestId String
+  purchaseRequest   PurchaseRequest   @relation(fields: [purchaseRequestId], references: [id], onDelete: Restrict)
+  qrCodeToken       String            @unique
+  paymentType       PaymentType       @default(CASH_CHECK)
+  purchaseMethod    PurchaseMethod?
+  isCheckIssued     Boolean           @default(false)
+  receivingReports  ReceivingReport[]
+  assetUnits        AssetUnit[]
+  documents         PurchaseOrderDocument[]
+  onlinePurchase    OnlinePurchasePlan?
+  receivingForms    ReceivingForm[]
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@index([purchaseRequestId])
+}
+
+// Append-only supporting files. These do not record a procurement transition.
+model PurchaseOrderDocument {
+  id              String        @id @default(uuid())
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Restrict)
+  kind            String        @db.VarChar(40)
+  filePath        String        @unique @db.VarChar(255)
+  fileName        String        @db.VarChar(180)
+  notes           String?       @db.Text
+  uploadedById    String
+  uploadedBy      User          @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+  onlineQuotes    OnlinePurchasePlan[] @relation("OnlineQuote")
+  onlineOrders    OnlinePurchasePlan[] @relation("OnlineOrder")
+  onlineEvents    AuditLog[]
+  receivingFormRevisionId String?
+  receivingFormRevision ReceivingFormRevision? @relation(fields: [receivingFormRevisionId], references: [id], onDelete: Restrict)
+  createdAt       DateTime      @default(now())
+
+  @@index([purchaseOrderId, createdAt, id])
+}
+
+model ReceivingForm {
+  id String @id @default(uuid())
+  purchaseOrderId String
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Restrict)
+  kind String @db.VarChar(2)
+  version Int @default(1)
+  revisions ReceivingFormRevision[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([purchaseOrderId, updatedAt, id])
+}
+
+model ReceivingFormRevision {
+  id String @id @default(uuid())
+  formId String
+  form ReceivingForm @relation(fields: [formId], references: [id], onDelete: Restrict)
+  version Int
+  payload Json
+  createdById String
+  createdBy User @relation("FormRevisionAuthor", fields: [createdById], references: [id], onDelete: Restrict)
+  exportedAt DateTime?
+  exportedById String?
+  exportedBy User? @relation("FormRevisionExporter", fields: [exportedById], references: [id], onDelete: Restrict)
+  signedCopies PurchaseOrderDocument[]
+  createdAt DateTime @default(now())
+
+  @@unique([formId, version])
+}
+
+model OnlinePurchasePlan {
+  id              String @id @default(uuid())
+  purchaseOrderId String @unique
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Restrict)
+  policyVersion   Int @default(1)
+  version         Int @default(1)
+  revision        Int @default(1)
+  stage           String @db.VarChar(30)
+  initialAmount   Decimal @db.Decimal(14, 2)
+  amount          Decimal @db.Decimal(14, 2)
+  quoteDocumentId String
+  quoteDocument   PurchaseOrderDocument @relation("OnlineQuote", fields: [quoteDocumentId], references: [id], onDelete: Restrict)
+  orderDocumentId String?
+  orderDocument   PurchaseOrderDocument? @relation("OnlineOrder", fields: [orderDocumentId], references: [id], onDelete: Restrict)
+  checkNumber     String? @db.VarChar(100)
+  payee           String? @db.VarChar(180)
+  orderReference  String? @db.VarChar(180)
+  events          AuditLog[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model ReceivingReport {
+  id                  String        @id @default(uuid())
+  purchaseOrderId     String
+  purchaseOrder       PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Restrict)
+  condition           ConditionNote
+  invoiceFilePath     String
+  asssetImageFilePath String        
+  remarks             String?       @db.Text
+  assetUnits          AssetUnit[]
+  createdAt           DateTime      @default(now())
+
+  @@index([purchaseOrderId])
+}
+
+model AssetUnit {
+  id                String @id @default(uuid())
+  assetTag          String @unique
+  qrCodeToken       String @unique
+  purchaseOrderId   String
+  purchaseOrder     PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Restrict)
+  receivingReportId String
+  receivingReport   ReceivingReport @relation(fields: [receivingReportId], references: [id], onDelete: Restrict)
+  lineIndex         Int
+  unitNumber        Int
+  itemName          String @db.Text
+  serialNumber      String?
+  registeredById    String
+  createdAt         DateTime @default(now())
+
+  @@unique([purchaseOrderId, lineIndex, unitNumber])
+  @@index([receivingReportId])
+}
+
+model AuditLog {
+  id                  String          @id @default(uuid())
+  prId                String
+  purchaseRequest     PurchaseRequest @relation(fields: [prId], references: [id], onDelete: Cascade)
+  actorId             String
+  actor               User            @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  previousState       PRStatus?    
+  newState            PRStatus
+  remarks             String?         @db.Text
+  businessNecessityVerified Boolean?
+  businessBudgetAvailable   Boolean?
+  onlinePurchasePlanId      String?
+  onlinePurchasePlan        OnlinePurchasePlan? @relation(fields: [onlinePurchasePlanId], references: [id], onDelete: Restrict)
+  onlinePurchaseAction      String? @db.VarChar(30)
+  onlinePurchaseAmount      Decimal? @db.Decimal(14, 2)
+  onlinePurchaseRevision    Int?
+  onlinePurchaseDocumentId  String?
+  onlinePurchaseDocument    PurchaseOrderDocument? @relation(fields: [onlinePurchaseDocumentId], references: [id], onDelete: Restrict)
+  notifications       Notification[]
+  createdAt           DateTime        @default(now())
+
+  @@index([prId])
+  @@index([actorId])
+}
+
+model NotificationPreference {
+  id                        String   @id @default(uuid())
+  userId                    String   @unique
+  user                      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notificationEmail         String?
+  pendingEmail              String?
+  emailVerifiedAt           DateTime?
+  emailNotificationsEnabled Boolean  @default(false)
+  verificationTokenHash     String?
+  verificationExpiresAt     DateTime?
+  verificationAttempts      Int      @default(0)
+  verificationSentAt        DateTime?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+}
+
+model Notification {
+  id               String          @id @default(uuid())
+  recipientId      String
+  recipient        User            @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  prId             String
+  purchaseRequest  PurchaseRequest @relation(fields: [prId], references: [id], onDelete: Cascade)
+  sourceAuditLogId String
+  sourceAuditLog   AuditLog        @relation(fields: [sourceAuditLogId], references: [id], onDelete: Cascade)
+  title            String
+  message          String          @db.Text
+  actionPath       String
+  readAt           DateTime?
+  archivedAt       DateTime?
+  trashedAt        DateTime?
+  purgeAfter       DateTime?
+  emailOutbox      EmailOutbox?
+  createdAt        DateTime        @default(now())
+
+  @@unique([recipientId, sourceAuditLogId])
+  @@index([recipientId, readAt, createdAt])
+  @@index([recipientId, archivedAt, createdAt])
+  @@index([recipientId, trashedAt, purgeAfter])
+  @@index([prId])
+}
+
+model EmailOutbox {
+  id             String            @id @default(uuid())
+  notificationId String            @unique
+  notification   Notification      @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  recipientEmail String
+  subject        String
+  bodyText       String            @db.Text
+  status         EmailOutboxStatus @default(PENDING)
+  attempts       Int               @default(0)
+  lastError      String?           @db.Text
+  nextAttemptAt  DateTime          @default(now())
+  sentAt         DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([status, nextAttemptAt])
+}
+
+// Reusable form text/items, private to the author and current department.
+model RequestTemplate {
+  id String @id @default(uuid())
+  ownerId String
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  departmentId String
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  name String @db.VarChar(120)
+  payload Json
+  version Int @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerId, departmentId, createdAt, id])
+}

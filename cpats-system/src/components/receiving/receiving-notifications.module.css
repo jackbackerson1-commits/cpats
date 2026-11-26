@@ -1,0 +1,35 @@
+.workspace { min-width: 0; }
+.workspace > main {
+  --text-xs: var(--cpats-type-12);
+  --text-sm: var(--cpats-type-14);
+  --text-base: var(--cpats-type-16);
+  --text-lg: var(--cpats-type-20);
+  --text-xl: var(--cpats-type-20);
+  --text-2xl: var(--cpats-type-24);
+  --text-3xl: var(--cpats-type-24);
+  max-width: 120rem;
+  min-width: 0;
+  padding: var(--cpats-space-16) max(var(--cpats-space-16), env(safe-area-inset-right)) max(var(--cpats-space-16), env(safe-area-inset-bottom)) max(var(--cpats-space-16), env(safe-area-inset-left));
+  font-size: var(--cpats-type-14);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.workspace > main > div:first-child { margin-bottom: var(--cpats-space-16); }
+.workspace > main > div:first-child > a { margin-bottom: var(--cpats-space-12); }
+.workspace h1 { font-size: clamp(var(--cpats-type-20), 1rem + 0.5vw, var(--cpats-type-24)); line-height: 1.25; }
+.workspace > main > :global(.grid) { gap: var(--cpats-space-16); }
+.workspace > main > :global(.grid) > :where(section, aside) { border-radius: var(--cpats-radius); }
+.workspace > main > :global(.grid) > aside { padding: var(--cpats-space-16); }
+.workspace :where(input:not([type="checkbox"]), select) { min-width: 0; max-width: 100%; font-size: var(--cpats-type-16); }
+.workspace :where(p, label) { overflow-wrap: anywhere; }
+.workspace :focus-visible { outline: 2px solid var(--cpats-focus); outline-offset: 2px; }
+@media (min-width: 48rem) {
+  .workspace > main { padding: var(--cpats-space-24) max(var(--cpats-space-24), env(safe-area-inset-right)) max(var(--cpats-space-24), env(safe-area-inset-bottom)) max(var(--cpats-space-24), env(safe-area-inset-left)); }
+}
+@media (min-width: 64rem) {
+  .workspace > main { padding-inline: max(clamp(var(--cpats-space-16), 2vw, var(--cpats-space-32)), env(safe-area-inset-left)) max(clamp(var(--cpats-space-16), 2vw, var(--cpats-space-32)), env(safe-area-inset-right)); }
+  .workspace :where(input:not([type="checkbox"]), select) { font-size: var(--cpats-type-14); }
+}
+@media (pointer: coarse) {
+  .workspace :where(input:not([type="checkbox"]), select) { font-size: var(--cpats-type-16); }
+}

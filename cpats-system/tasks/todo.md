@@ -1,0 +1,21 @@
+# Procurement interview increments
+
+- [x] Trace current handlers, callers, schema, evidence access, and interview boundaries.
+- [x] Record the implementation plan and first-increment contract.
+- [x] Add failing isolated tests for document permissions, validated references, idempotent saves, and preserved workflow fields.
+- [x] Implement the additive PO document register and role-scoped evidence access.
+- [x] Integrate the panel into Purchasing tracking, BO financial clearance, and Receiving history.
+- [x] Add confirmed cash/check, supplier credit, and SOA guidance without promising future workflow steps.
+- [x] Verify targeted tests, requester safeguards, touched-code lint, and isolated production build/type checking.
+- [x] Check the document panel at 360, 768, and 1440 px with isolated browser fixtures.
+- [x] Record migration/runtime limits and hand off remaining BO-dependent decisions.
+- [x] Apply and verify the additive migration once the configured MySQL database is available.
+- [x] Implement the user-authorized provisional online cash timing and amount-review workflow, with explicit per-PO enrollment.
+- [x] Add exact-revision BO/Admin review, check release, ordering evidence, amount-difference safeguards, audit and notifications.
+- [x] Recheck step 2 against Grace's and Dulce's answers: second Admin review and Purchasing order recording already exist for enrolled online cash POs; distinguish confirmed responsibilities from provisional finance rules.
+- [x] Apply the additive migration and verify existing correction/reuse, legacy cash/credit, and Receiving paths with isolated fixtures.
+- [ ] Confirm provisional payment/amount rules with BO; then revise the versioned policy without rewriting historical approvals.
+- [x] Add RR/MR web drafts, editable PO prefilling, saved revisions, original-layout Excel export and revision-linked signed copies.
+- [x] Apply RR/MR migration; verify native Excel rendering, responsive browser fixtures and protected workflow paths.
+- [ ] Confirm automatic RR/MR classification, signature requirements, numbering and final handover rules before adding mandatory checks.
+- [ ] Implement remaining capabilities only within their separately authorized scope.

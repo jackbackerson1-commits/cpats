@@ -1,0 +1,120 @@
+/* Receiving Custodian opt-in: reuse the established institutional palette and scale. */
+.receiving-account { position: relative; }
+.receiving-account > summary { min-height: var(--cpats-control-touch); align-content: center; padding: var(--cpats-space-8); color: #cce0d4; font-size: var(--cpats-type-12); cursor: pointer; border-radius: .5rem; }
+.receiving-account strong { color: white; }
+.receiving-account > summary:hover { background: #ffffff14; }
+.receiving-account > summary:focus-visible { outline: 2px solid #e5ce7f; outline-offset: 3px; }
+.receiving-account > div { position: absolute; top: 100%; right: 0; z-index: 50; width: max-content; max-width: min(22rem, 80vw); padding: var(--cpats-space-16); border: 1px solid var(--request-line); border-radius: var(--cpats-radius); background: white; color: var(--request-ink); box-shadow: var(--request-shadow); }
+body:has(.receiving-portal-header) main:is(.receiving-portal-workspace,.asset-register-page,:has(> section[aria-labelledby="guide-title"])) {
+  --receiving-header-height: var(--receiving-shell-height, 5.75rem);
+  --history-header: var(--receiving-shell-height, 5.75rem);
+  max-width: 100rem;
+  padding: var(--cpats-space-16);
+  color: var(--portal-ink);
+
+  & > :not(:last-child) { margin-bottom: var(--cpats-space-16); }
+  & > header.receiving-page-introduction,
+  & > header,
+  & > section[aria-labelledby="guide-title"] { padding: var(--cpats-space-4) 0 var(--cpats-space-12); border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+  & > header::before,
+  & > section[aria-labelledby="guide-title"]::before { display: none; }
+  & > header > p { margin-bottom: var(--cpats-space-4); }
+  & > header.receiving-page-introduction > div > div:first-child { max-width: none; }
+  & h1 { font-size: var(--cpats-type-24); font-weight: 750; letter-spacing: -.035em; line-height: 1.25; color: var(--portal-ink); }
+  & > header p { color: var(--portal-muted); }
+  & :is(.rounded-xl,.rounded-2xl) { border-radius: var(--cpats-radius); }
+  & [class~="bg-white"][class~="border-slate-200"] { border-color: var(--portal-line); box-shadow: var(--portal-shadow); }
+  & :is(button,a,label,span)[class~="bg-emerald-800"] { background: var(--portal-forest); color: white; }
+  & :is(button,a,label)[class~="bg-emerald-800"]:hover { background: #16563f; }
+  & button[class~="bg-emerald-800"]:disabled { background: #cbd5e1; color: #334155; box-shadow: none; }
+  & :is(input,textarea,select):focus { border-color: var(--portal-emerald); }
+  & :focus-visible { outline: 2px solid var(--portal-emerald); outline-offset: 3px; }
+  & :is(button,a,input,textarea,select,summary) { transition-duration: 150ms; }
+  & table th { background: #f4f8f5; color: var(--portal-muted); }
+  & table tr:hover td { background: #f7faf8; }
+  & .receiving-intake-list > div { border-top: 3px solid var(--portal-forest); }
+  & .receiving-intake-list > div > div:first-child { padding: var(--cpats-space-12); }
+  & .receiving-intake-task[aria-pressed="true"] { background: var(--portal-mint); border-color: var(--portal-emerald); box-shadow: inset 3px 0 var(--portal-emerald); }
+  & .receiving-intake-form > section { padding: var(--cpats-space-16); }
+  & .receiving-intake-form > section > h2 { color: var(--portal-ink); font-size: var(--cpats-type-16); }
+  & .receiving-intake-reference input { background: var(--portal-mint); color: var(--portal-muted); }
+  & .receiving-intake-upload { background: #f7faf8; border-color: var(--portal-line); border-radius: .75rem; }
+  & .receiving-intake-actions { background: white; border: 1px solid var(--portal-line); border-top: 3px solid var(--portal-forest); box-shadow: var(--portal-shadow); }
+  & .receiving-intake-actions p { color: var(--portal-muted); }
+  & .receiving-intake-actions button { min-height: var(--cpats-control-touch); }
+  & :is(.receiving-intake-list-content,.receiving-history-detail) { scrollbar-width: auto; scrollbar-color: var(--portal-muted) var(--portal-mint); }
+  & .receiving-intake-list-content::-webkit-scrollbar { width: var(--cpats-space-12); }
+  & .receiving-intake-list-content::-webkit-scrollbar-thumb { background: var(--portal-muted); border-radius: .5rem; border: 3px solid var(--portal-mint); }
+  & .asset-selection-toolbar { border-color: var(--portal-line); background: #f7faf8; }
+  & .asset-register-columns .asset-preview-panel { border-top: 3px solid var(--portal-forest); }
+  & section[aria-labelledby="guide-tasks-title"] li { border-top: 3px solid var(--portal-emerald); }
+  & section[aria-labelledby="guide-tasks-title"] li:focus-within,
+  & section[aria-labelledby="guide-tasks-title"] li:hover { background: #f7faf8; border-color: var(--portal-emerald); }
+  & section[aria-labelledby="guide-answers-title"] summary { display: flex; align-items: center; justify-content: space-between; gap: var(--cpats-space-12); list-style: none; }
+  & section[aria-labelledby="guide-answers-title"] summary::-webkit-details-marker { display: none; }
+  & section[aria-labelledby="guide-answers-title"] summary::after { content: ''; width: var(--cpats-space-8); height: var(--cpats-space-8); flex-shrink: 0; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); transition: transform 150ms; }
+  & section[aria-labelledby="guide-answers-title"] details[open] summary::after { transform: rotate(225deg); }
+}
+@media (min-width: 48rem) {
+  body:has(.receiving-portal-header) main:is(.receiving-portal-workspace,.asset-register-page,:has(> section[aria-labelledby="guide-title"])) { padding-inline: var(--cpats-space-24); }
+}
+@media (min-width: 64rem) and (max-width: 79.999rem) {
+  .receiving-portal-header > div { display: block; }
+  .receiving-portal-header > div > div { display: flex; }
+  .receiving-portal-header nav a { min-height: 3rem; }
+}
+@media (min-width: 80rem) {
+  .receiving-portal-header > div { column-gap: var(--cpats-space-24); }
+}
+@media (max-width: 47.999rem) {
+  .receiving-portal-header > div > div,
+  .receiving-portal-header > div > div > div { flex-wrap: wrap; }
+}
+@media (prefers-reduced-motion: reduce) {
+  body:has(.receiving-portal-header) main * { transition: none !important; scroll-behavior: auto !important; }
+}
+
+/* Receiving-only density pass; preserve control sizes and pane/action geometry. */
+body:has(.receiving-portal-header) main:is(.receiving-intake-page,.receiving-history-page,.asset-register-page,:has(> section[aria-labelledby="guide-title"])) {
+  & > :not(:last-child) { margin-block: 0 var(--cpats-space-12); }
+  & > header[class],
+  & > section[aria-labelledby="guide-title"] { padding-bottom: 0; margin-bottom: var(--cpats-space-8); }
+  & .receiving-intake-form > section { padding: var(--cpats-space-12) var(--cpats-space-16); }
+  & .receiving-intake-form > section > div { margin-top: var(--cpats-space-12); }
+  & .receiving-intake-form.space-y-6 > :not(:last-child) { margin-block-end: var(--cpats-space-12); }
+  & .receiving-intake-actions { padding-top: var(--cpats-space-8); }
+  & .receiving-history-filters { padding: var(--cpats-space-12) var(--cpats-space-16); }
+  & .receiving-history-workspace { gap: var(--cpats-space-12); }
+  & .receiving-history-detail > :not(:last-child) { margin-block-end: var(--cpats-space-12); }
+  & .receiving-history-detail > div { padding: var(--cpats-space-12) var(--cpats-space-16); }
+  & .receiving-history-list-scroll > button > span:nth-child(2),
+  & .receiving-history-list-scroll > button > span:last-child { margin-top: var(--cpats-space-4); }
+}
+main#review-viewport-page.receiving-intake-page > * + * { margin-top: 0; }
+
+body:has(.receiving-portal-header.receiving-assets-header) main.asset-register-page {
+  & > section:not(.asset-register-workspace) { padding: var(--cpats-space-12) var(--cpats-space-16); }
+  & :where(.space-y-4, .space-y-6) > :not(:last-child) { margin-block-end: var(--cpats-space-8); }
+  & section[aria-label="Register filters"] { gap: var(--cpats-space-8) var(--cpats-space-12); }
+  & .asset-selection-toolbar { padding: var(--cpats-space-8) var(--cpats-space-12); }
+  & .asset-register-columns { gap: var(--cpats-space-12); }
+  & .asset-unit-table :where(th, td) { padding-block: var(--cpats-space-8); }
+  & .asset-unit-list { gap: var(--cpats-space-8); }
+  & .asset-preview-panel > div { padding-block: var(--cpats-space-8); }
+  & .asset-registration-section form { margin-top: var(--cpats-space-12); }
+  & .asset-registration-section fieldset > .grid { gap: var(--cpats-space-8) var(--cpats-space-12); }
+}
+
+body:has(.receiving-portal-header) main:has(> section[aria-labelledby="guide-title"]) {
+  & > section:not(:last-child) { margin-block: 0 var(--cpats-space-12); }
+  & > section:last-child { margin-top: 0; }
+  & > section[aria-labelledby="guide-title"] { padding-bottom: 0; margin-bottom: var(--cpats-space-8); }
+  & > section[aria-label="Search help"] { padding: var(--cpats-space-12) var(--cpats-space-16); }
+  & > section[aria-label="Search help"] > p { margin-top: var(--cpats-space-4); }
+  & > section > h2 { margin-bottom: var(--cpats-space-8); }
+  & section[aria-labelledby="guide-tasks-title"] ul { gap: var(--cpats-space-12); }
+  & section[aria-labelledby="guide-tasks-title"] li { padding: var(--cpats-space-12) var(--cpats-space-16); }
+  & section[aria-labelledby="guide-tasks-title"] li > p { margin-block: var(--cpats-space-4) var(--cpats-space-8); }
+  & section[aria-labelledby="guide-answers-title"] details { padding: var(--cpats-space-4) var(--cpats-space-16); }
+  & section[aria-labelledby="guide-answers-title"] details + details { margin-top: var(--cpats-space-8); }
+}

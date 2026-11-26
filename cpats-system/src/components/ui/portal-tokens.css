@@ -1,0 +1,12 @@
+/* Shared institutional palette; consumers opt in through their office theme. */
+:where(.requester-portal-header, .requester-workspace, .purchasing-portal-header,
+  div:has(> .requester-portal-header), div:has(> .purchasing-portal-header)) {
+  --portal-forest: #0b3d2e;
+  --portal-emerald: #1f7a4d;
+  --portal-mint: #f1f7f3;
+  --portal-gold: #c9a227;
+  --portal-ink: #142e25;
+  --portal-muted: #52665e;
+  --portal-line: #dbe7df;
+  --portal-shadow: 0 2px 4px #103e2810, 0 8px 28px #103e2808;
+}

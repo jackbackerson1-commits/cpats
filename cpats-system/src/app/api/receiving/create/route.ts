@@ -1,0 +1,90 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { PRStatus, Role, ConditionNote } from '@prisma/client';
+import { prisma } from '@/shared/prisma';
+import { CreateReceivingReportSchema } from '@/validation/receiving.schema';
+import { authorizeRequest } from '@/shared/rbac';
+import { dispatchNotificationForAuditLog } from '@/shared/notifications';
+import { isWorkflowConflict, WORKFLOW_CONFLICT_MESSAGE } from '@/shared/workflow-conflict';
+import { assertEvidenceReferences, EvidenceError } from '@/shared/evidence';
+
+export async function POST(request: NextRequest) {
+  try {
+    const auth = await authorizeRequest(request, Role.Receiving_Custodian);
+    if (!auth.success) return auth.response;
+    const activeUser = auth.user;
+
+    const rawBody = await request.json();
+    const validation = CreateReceivingReportSchema.safeParse(rawBody);
+
+    if (!validation.success) {
+      return NextResponse.json(
+        { success: false, errors: validation.error.format() },
+        { status: 422 }
+      );
+    }
+
+    const { purchaseOrderId, condition, invoiceFilePath, asssetImageFilePath, remarks } = validation.data;
+    await assertEvidenceReferences(activeUser, invoiceFilePath, asssetImageFilePath);
+
+    const transactionResult = await prisma.$transaction(async (tx) => {
+      const targetPO = await tx.purchaseOrder.findUnique({
+        where: { id: purchaseOrderId },
+        include: { purchaseRequest: true }
+      });
+
+      if (!targetPO) {
+        throw new Error("PURCHASE_ORDER_NOT_FOUND");
+      }
+
+      if (targetPO.purchaseRequest.status !== PRStatus.Ready_for_Purchase) {
+        throw new Error("INVALID_LIFECYCLE_STAGE");
+      }
+
+      // Claim the eligible request first; a losing submission creates no report.
+      await tx.purchaseRequest.update({
+        where: { id: targetPO.purchaseRequestId, status: PRStatus.Ready_for_Purchase, updatedAt: targetPO.purchaseRequest.updatedAt },
+        data: { status: PRStatus.Received_and_Closed }
+      });
+
+      const newReport = await tx.receivingReport.create({
+        data: {
+          purchaseOrderId: purchaseOrderId,
+          condition: condition as ConditionNote,
+          invoiceFilePath: invoiceFilePath,
+          asssetImageFilePath: asssetImageFilePath,
+          remarks: remarks || null
+        }
+      });
+
+      const auditLog = await tx.auditLog.create({
+        data: {
+          prId: targetPO.purchaseRequestId,
+          actorId: activeUser.id,
+          previousState: PRStatus.Ready_for_Purchase,
+          newState: PRStatus.Received_and_Closed,
+          remarks: `Asset inspection finalized. Condition: [${condition}]. Physical photo record [${asssetImageFilePath}] bound.`
+        }
+      });
+
+      return { record: newReport, auditLogId: auditLog.id };
+    });
+
+    await dispatchNotificationForAuditLog(transactionResult.auditLogId);
+
+    return NextResponse.json({ success: true, data: transactionResult.record }, { status: 201 });
+  } catch (error: unknown) {
+    if (error instanceof EvidenceError) return NextResponse.json({ success: false, error: error.message }, { status: error.status });
+    if (isWorkflowConflict(error)) return NextResponse.json({ success: false, error: WORKFLOW_CONFLICT_MESSAGE }, { status: 409 });
+    if (error instanceof Error) {
+      switch (error.message) {
+        case "PURCHASE_ORDER_NOT_FOUND":
+          return NextResponse.json({ success: false, error: "The targeted Purchase Order reference does not exist." }, { status: 404 });
+        case "INVALID_LIFECYCLE_STAGE":
+          return NextResponse.json({ success: false, error: "State Transition Violation: Target must have 'Ready_for_Purchase' status." }, { status: 409 });
+        default:
+          return NextResponse.json({ success: false, error: "Database Execution Fault." }, { status: 500 });
+      }
+    }
+    return NextResponse.json({ success: false, error: "An unclassified system exception occurred." }, { status: 500 });
+  }
+}

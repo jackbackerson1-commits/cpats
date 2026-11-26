@@ -1,0 +1,157 @@
+.business-evaluation-page {
+  --text-xs: var(--cpats-type-12);
+  --text-sm: var(--cpats-type-14);
+  --text-base: var(--cpats-type-16);
+  --text-lg: var(--cpats-type-20);
+  --text-2xl: var(--cpats-type-24);
+  --text-3xl: var(--cpats-type-24);
+  --spacing: var(--cpats-space-4);
+  --radius-xl: var(--cpats-radius);
+  --business-control-height: var(--cpats-control-default);
+  max-width: 120rem;
+  min-width: 0;
+  padding: var(--cpats-space-16) max(var(--cpats-space-16), env(safe-area-inset-right)) var(--cpats-space-16) max(var(--cpats-space-16), env(safe-area-inset-left));
+  font-size: var(--cpats-type-14);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+body:has(.business-evaluation-page) { min-height: 100dvh; }
+.business-evaluation-page > * + * { margin-top: var(--cpats-space-16); }
+.business-evaluation-page > header { padding: 0; border: 0; border-radius: 0; background: transparent; }
+.business-evaluation-page > header::before { display: none; }
+.business-evaluation-page > header > p { margin-bottom: var(--cpats-space-4); }
+.business-evaluation-page > header h1 { font-size: clamp(var(--cpats-type-20), 1rem + 0.5vw, var(--cpats-type-24)); line-height: 1.25; }
+.business-evaluation-page > header h1 + p { margin-top: var(--cpats-space-4); }
+.business-evaluation-page :where(button, summary, select, input:not([type="checkbox"]):not([type="hidden"]), textarea) { min-height: var(--business-control-height); font-size: var(--cpats-type-14); }
+.business-evaluation-page :where(button, summary, select) { padding-block: var(--cpats-space-4); }
+.business-evaluation-page :where(input:not([type="checkbox"]), textarea) { padding-block: var(--cpats-space-8); }
+.business-evaluation-page :where(.sm\:p-5, .sm\:p-6) { padding: var(--cpats-space-16); }
+.business-evaluation-page :where(.mt-5) { margin-top: var(--cpats-space-16); }
+.business-evaluation-page :where(.pt-5) { padding-top: var(--cpats-space-16); }
+.business-evaluation-page :where(.pb-5) { padding-bottom: var(--cpats-space-16); }
+.business-evaluation-page :where(.space-y-5, .space-y-6) > :not(:last-child) { margin-block-end: var(--cpats-space-16); }
+.business-evaluation-page :where(.shadow-xs) { box-shadow: none; }
+.business-evaluation-page :focus-visible { outline: 2px solid var(--cpats-focus); outline-offset: 2px; }
+.business-review-workspace { --business-header-height: 4rem; display: grid; min-width: 0; align-items: start; gap: var(--cpats-space-24); }
+.business-review-list { min-width: 0; overflow: hidden; }
+.business-review-list-body { min-height: 0; overflow-y: auto; }
+.business-review-list-scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.business-review-list input[type="search"] { padding-right: calc(var(--business-control-height) + var(--cpats-space-4)); }
+.business-evaluation-page .business-clear-search { width: var(--business-control-height); height: var(--business-control-height); padding: 0; }
+.business-evaluation-page .business-queue-item { padding: var(--cpats-space-12); }
+.business-queue-item[aria-pressed="true"] { box-shadow: inset 3px 0 #047857; }
+.business-queue-item > span > span { min-width: 0; }
+.business-review-list,
+.business-review-detail { scroll-margin-top: calc(var(--business-header-height) + var(--cpats-space-16)); }
+.business-request-panels { min-width: 0; }
+.business-request-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--cpats-space-12); min-width: 0; }
+.business-request-title-row h2 { flex: 1; }
+.business-status-badge { max-width: 50%; flex-shrink: 0; }
+.business-detail-tabs { display: flex; flex-wrap: nowrap; gap: var(--cpats-space-16); overflow-x: auto; padding: var(--cpats-space-4); margin-inline: calc(-1 * var(--cpats-space-4)); border-bottom: 1px solid var(--cpats-border); }
+.business-evaluation-page .business-detail-tab { flex: 0 0 auto; min-height: var(--business-control-height); padding: var(--cpats-space-8) var(--cpats-space-4); border-bottom: 2px solid transparent; font-size: var(--cpats-type-14); font-weight: 500; color: #475569; white-space: nowrap; }
+.business-detail-tab[aria-selected="true"] { border-bottom-color: #047857; color: #064e3b; }
+.business-detail-tab:hover { color: #064e3b; background: #f8fafc; }
+.business-reference-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--cpats-space-8); min-width: 0; }
+.business-reference-row > code { flex: 1; }
+.business-evaluation-page .business-copy-button { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; min-width: var(--business-control-height); padding: var(--cpats-space-4); }
+.business-overview-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr)); }
+.business-action-bar { position: fixed; inset: auto 0 0; z-index: 30; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--cpats-space-8) var(--cpats-space-16); padding: var(--cpats-space-8) max(var(--cpats-space-16), env(safe-area-inset-right)) max(var(--cpats-space-8), env(safe-area-inset-bottom)) max(var(--cpats-space-16), env(safe-area-inset-left)); border-top: 1px solid var(--cpats-border); background: #fff; box-shadow: 0 -1px 4px #0f172a0a; }
+.business-action-context { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--cpats-space-4) var(--cpats-space-8); }
+.business-action-buttons { display: flex; flex-wrap: wrap; gap: var(--cpats-space-8); min-width: 0; width: 100%; }
+.business-action-buttons > button { flex: 1; padding-inline: var(--cpats-space-12); }
+.business-review-form :where(input, textarea, button, select, [tabindex]),
+#business-decision-controls { scroll-margin-top: calc(var(--business-header-height) + var(--business-action-height, 0px) + var(--cpats-space-24)); scroll-margin-bottom: calc(var(--business-action-height, 0px) + var(--cpats-space-16)); }
+.business-evaluation-page .business-history-card-status { margin-top: var(--cpats-space-8); }
+.business-evaluation-page .business-decision-choices { grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); gap: var(--cpats-space-8); }
+.business-evaluation-page .business-decision-choice { padding: var(--cpats-space-8) var(--cpats-space-12); }
+.business-evaluation-page label[for^="gate-"] { min-height: var(--business-control-height); padding: var(--cpats-space-12); }
+@media (min-width: 48rem) {
+  .business-evaluation-page { padding: var(--cpats-space-24); }
+}
+@media (min-width: 64rem) {
+  .business-evaluation-page { padding-inline: clamp(var(--cpats-space-16), 2vw, var(--cpats-space-32)); }
+  .business-review-workspace { grid-template-columns: minmax(16rem, 26%) minmax(0, 1fr); }
+  .business-review-workspace[data-sticky="true"] .business-review-list { position: sticky; top: calc(var(--business-header-height) + var(--cpats-space-12)); display: flex; flex-direction: column; max-height: calc(100dvh - var(--business-header-height) - var(--cpats-space-32)); }
+  .business-queue-filters > details > div > div { grid-template-columns: minmax(0, 1fr); }
+  .business-action-bar { position: sticky; inset: auto; top: calc(var(--business-header-height) + var(--cpats-space-12)); padding: var(--cpats-space-8) var(--cpats-space-12); border: 1px solid var(--cpats-border); border-radius: var(--cpats-radius); box-shadow: 0 1px 4px #0f172a08; }
+  .business-action-context { flex: 1 1 10rem; display: block; }
+  .business-action-buttons { flex: 0 1 auto; width: auto; }
+  .business-action-buttons > button { flex: 0 1 auto; }
+}
+@media (max-width: 63.999rem) {
+  .business-review-workspace[data-mobile-view="detail"] .business-review-list,
+  .business-review-workspace[data-mobile-view="queue"] .business-review-detail { display: none; }
+  .business-review-form:has(.business-action-bar) { padding-bottom: calc(var(--business-action-height, 8rem) + var(--cpats-space-16)); }
+  .business-review-form :where(input, textarea, button, select, [tabindex]),
+  #business-decision-controls { scroll-margin-top: calc(var(--business-header-height) + var(--cpats-space-16)); }
+}
+@media (max-width: 63.999rem), (pointer: coarse) {
+  .business-evaluation-page { --business-control-height: var(--cpats-control-touch); }
+  .business-evaluation-page :where(input:not([type="checkbox"]), textarea, select) { font-size: var(--cpats-type-16); }
+}
+
+/* Keep Fiscal Evaluation's navigation and footer clear of the reading area. */
+main#review-viewport-page.business-fiscal-polish {
+  & .business-request-summary { position: static; order: 0; }
+  & .business-review-detail {
+    scroll-padding-top: var(--cpats-space-8);
+    scroll-padding-bottom: var(--cpats-space-8);
+  }
+  & .business-review-form :where(input, textarea, button, select, [tabindex]),
+  & #business-decision-controls {
+    scroll-margin-top: var(--cpats-space-8);
+    scroll-margin-bottom: calc(var(--business-action-height, 0px) + var(--cpats-space-8));
+  }
+  & .business-review-form .business-action-bar {
+    display: grid;
+    order: 0;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  & .business-action-buttons { width: auto; }
+  & .business-reference-toggle { align-content: center; }
+}
+
+@media (max-width: 63.999rem), (pointer: coarse) {
+  main#review-viewport-page.business-fiscal-polish {
+    & .business-review-form .business-action-bar { grid-template-columns: minmax(0, 1fr); }
+    & .business-action-buttons { width: 100%; }
+    & :is(.business-records-toolbar, .business-fiscal-list-tools, .business-review-detail) :is(button, input:not([type="checkbox"]), summary) {
+      min-height: var(--cpats-control-touch);
+    }
+    & .business-records-toolbar > button { min-width: var(--cpats-control-touch); }
+    & .business-detail-tabs,
+    & [aria-label="Decision history filters"] { flex-wrap: wrap; }
+    & .business-request-title-row { flex-wrap: wrap; }
+    & .business-request-title-row h2 { flex-basis: 100%; }
+    & .business-status-badge { max-width: 100%; }
+  }
+}
+
+@media (max-width: 30rem) {
+  main#review-viewport-page.business-fiscal-polish {
+    & > .business-records-toolbar:has(> p) {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+    & > .business-records-toolbar > p { grid-column: 1 / -1; }
+    & [aria-label="Queue view"] button > span { white-space: nowrap; }
+    & > .business-records-toolbar:has(> p) + .business-review-workspace .business-fiscal-search {
+      flex-basis: 100%;
+      &:not(:has(.business-clear-search)) input { padding-right: var(--cpats-space-12); }
+    }
+  }
+}
+
+@media (min-width: 64rem) {
+  main#review-viewport-page.business-fiscal-polish {
+    & #business-decision-controls > section:has(.business-verification-checks) {
+      padding-block: var(--cpats-space-12);
+      & > div { margin-top: var(--cpats-space-8); }
+      & > div > p { margin-bottom: var(--cpats-space-8); }
+    }
+    & .business-verification-checks {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--cpats-space-12);
+    }
+  }
+}

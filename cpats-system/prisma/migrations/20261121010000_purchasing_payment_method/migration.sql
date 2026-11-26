@@ -1,0 +1,2 @@
+ALTER TABLE `PurchaseOrder`
+    ADD COLUMN `purchaseMethod` ENUM('LOCAL_CASH', 'ONLINE_CASH', 'SUPPLIER_CREDIT') NULL;

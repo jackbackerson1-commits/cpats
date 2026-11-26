@@ -1,0 +1,9 @@
+.cpats-print-sheet { display: none; }
+@media print {
+  body > * { display: none !important; }
+  body > .cpats-print-sheet { display: block !important; background: white; color: black; }
+  .cpats-label-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8mm; }
+  .cpats-label { break-inside: avoid; border: 1px solid #64748b; padding: 5mm; text-align: center; overflow-wrap: anywhere; font: 12px/1.5 Arial, sans-serif; }
+  .cpats-label svg { display: block; margin: 2mm auto; }
+  .cpats-label strong { display: block; }
+}

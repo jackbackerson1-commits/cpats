@@ -1,0 +1,25 @@
+.cpats-online-po-print { display: none; }
+
+@media print {
+  body:has(> .cpats-online-po-print) > * { display: none !important; }
+  body:has(> .cpats-online-po-print) { margin: 0; }
+
+  body > .cpats-online-po-print {
+    display: block !important;
+    color: #000;
+    background: #fff;
+    font: 11pt/1.45 Arial, sans-serif;
+    overflow-wrap: anywhere;
+  }
+
+  .cpats-online-po-print-summary { break-inside: avoid; }
+  .cpats-online-po-print h1 { font-size: 18pt; font-weight: bold; margin: 4mm 0; }
+  .cpats-online-po-print-authorization { border: 1pt solid #000; padding: 2mm 3mm; margin-bottom: 4mm; }
+  .cpats-online-po-print h2 { font-size: 12pt; font-weight: bold; margin: 4mm 0 2mm; break-after: avoid; }
+  .cpats-online-po-print dl { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 2mm 4mm; }
+  .cpats-online-po-print dt { font-weight: bold; }
+  .cpats-online-po-print table { width: 100%; border-collapse: collapse; margin-bottom: 4mm; }
+  .cpats-online-po-print thead { display: table-header-group; }
+  .cpats-online-po-print tr { break-inside: avoid; }
+  .cpats-online-po-print :is(th, td) { padding: 2mm; text-align: left; border: 1px solid #777; }
+}

@@ -1,0 +1,102 @@
+/* File: src/app/globals.css */
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-geist-mono), monospace;
+
+  /* Institutional Color System: DMCCFI Emerald */
+  --color-dmc-950: #022c22;
+  --color-dmc-900: #064e3b;
+  --color-dmc-800: #065f46;
+  --color-dmc-700: #047857; /* primary brand accent */
+  --color-dmc-600: #059669;
+
+  --color-dmc-foam-50: #ecfdf5;
+  --color-dmc-foam-100: #d1fae5;
+  --color-dmc-foam-200: #a7f3d0;
+
+  /* Neutral canvas ramp (slate, matches Tailwind defaults used across pages) */
+  --color-dmc-slate-50: #f8fafc;
+  --color-dmc-slate-100: #f1f5f9;
+  --color-dmc-slate-200: #e2e8f0;
+  --color-dmc-slate-400: #94a3b8;
+  --color-dmc-slate-500: #64748b;
+  --color-dmc-slate-700: #334155;
+  --color-dmc-slate-900: #0f172a;
+}
+
+/*
+ * Intentionally light-only. This is an institutional audit/compliance
+ * portal — the design system is not built for a dark variant, and letting
+ * prefers-color-scheme flip the canvas produces a broken half-dark UI.
+ * If a real dark mode is ever wanted, it needs its own token pass rather
+ * than inheriting the OS preference.
+ */
+:root {
+  /* Opt-in procurement UI tokens. Existing office layouts keep their defaults. */
+  --cpats-type-12: 0.75rem;
+  --cpats-type-14: 0.875rem;
+  --cpats-type-16: 1rem;
+  --cpats-type-20: 1.25rem;
+  --cpats-type-24: 1.5rem;
+  --cpats-space-4: 0.25rem;
+  --cpats-space-8: 0.5rem;
+  --cpats-space-12: 0.75rem;
+  --cpats-space-16: 1rem;
+  --cpats-space-24: 1.5rem;
+  --cpats-space-32: 2rem;
+  --cpats-control-compact: 2rem;
+  --cpats-control-default: 2.25rem;
+  --cpats-control-touch: 2.75rem;
+  --cpats-radius: 0.5rem;
+  --cpats-border: #e2e8f0;
+  --cpats-focus: #047857;
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  color-scheme: light;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  min-height: 100vh;
+  letter-spacing: -0.011em;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Data-grid scrollbar styling, tuned for a light canvas */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Consistent visible focus ring across the app for accessibility */
+:focus-visible {
+  outline: 2px solid var(--color-dmc-600, #059669);
+  outline-offset: 2px;
+}

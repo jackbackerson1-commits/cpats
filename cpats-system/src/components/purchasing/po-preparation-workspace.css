@@ -1,0 +1,157 @@
+main.purchasing-workspace.po-preparation-page {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+body:has(.purchasing-portal-header) main.purchasing-workspace.po-preparation-page > :not(:last-child) {
+  margin-block: 0 var(--cpats-space-16);
+}
+
+body:has(.purchasing-portal-header) main.purchasing-workspace.po-preparation-page > .purchasing-introduction {
+  padding-block: 0;
+}
+
+body:has(.purchasing-portal-header) main.purchasing-workspace.po-preparation-page :is([tabindex], input, button, select, summary, a) {
+  scroll-margin-block: var(--cpats-space-12);
+}
+
+.po-preparation-page :focus-visible {
+  outline: 2px solid var(--cpats-focus);
+  outline-offset: 2px;
+}
+
+.po-preparation-page :where(input:not([type="checkbox"]), select) {
+  min-height: var(--cpats-control-touch);
+  max-width: 100%;
+  padding-block: var(--cpats-space-8);
+}
+
+.po-saved-checkouts:not(:has(details[open])) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  column-gap: var(--cpats-space-16);
+}
+
+.po-preparation-page summary::-webkit-details-marker {
+  display: none;
+}
+
+.po-preparation-workspace {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.po-preparation-list,
+.po-preparation-detail .review-record-header {
+  position: static;
+}
+
+.po-preparation-selection {
+  display: none;
+}
+
+.po-preparation-list-content {
+  display: block;
+}
+
+.po-preparation-page button[aria-label="Clear queue search"] {
+  width: var(--cpats-control-touch);
+  padding: 0;
+}
+
+.po-preparation-list-content input[type="search"]::-webkit-search-cancel-button {
+  display: none;
+}
+
+.po-preparation-list-scroll button[aria-pressed] {
+  height: auto;
+  min-height: 6rem;
+  padding-block: var(--cpats-space-8);
+}
+
+.po-preparation-list-scroll button[aria-pressed] > span:first-child,
+.po-preparation-detail .review-record-header h2 {
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: unset;
+}
+
+.po-preparation-list-scroll button[aria-pressed="true"]::after {
+  content: "Selected";
+  color: var(--portal-forest);
+  font-weight: 600;
+}
+
+.po-preparation-detail .review-record-header {
+  padding: var(--cpats-space-12) var(--cpats-space-16);
+  border: 1px solid var(--portal-line);
+  border-radius: var(--cpats-radius);
+  background: white;
+}
+
+.po-preparation-detail .review-record-header > div {
+  margin-top: var(--cpats-space-4);
+}
+
+.po-preparation-detail .review-record-header button {
+  min-width: var(--cpats-control-touch);
+}
+
+.po-preparation-detail .review-record-context {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--cpats-space-4) var(--cpats-space-12);
+}
+
+.po-preparation-detail .review-record-context > :is(p, span) {
+  margin: 0;
+}
+
+.po-preparation-reference input {
+  cursor: default;
+}
+
+@media (max-width: 39.999rem) {
+  .po-preparation-page .purchasing-introduction dl {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--cpats-space-4) var(--cpats-space-8);
+  }
+
+  .po-preparation-page .purchasing-introduction dd {
+    margin-top: 0;
+  }
+}
+
+@media (max-width: 63.999rem) {
+  .po-preparation-workspace[data-mobile-view="detail"] .po-preparation-list,
+  .po-preparation-workspace[data-mobile-view="queue"] .po-preparation-detail {
+    display: none;
+  }
+
+  .po-preparation-list-scroll {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .po-preparation-page :where(input:not([type="checkbox"]), select) {
+    font-size: var(--cpats-type-16);
+  }
+}
+
+@media (min-width: 64rem) {
+  .po-preparation-workspace {
+    grid-template-columns: minmax(16rem, 29%) minmax(0, 1fr);
+  }
+
+  .po-preparation-list-content details > div > div {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .po-preparation-back {
+    display: none;
+  }
+}
